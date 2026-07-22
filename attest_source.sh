@@ -17,6 +17,7 @@
 #   BUILD_ENV                environment to verify against (default: mainnet)
 #   APP_PACKAGE_ID           source_verification package, required to attest
 #   ENCLAVE_OBJECT_ID        the registered Enclave<SourceVerifier> shared object
+#   ENCLAVE_CONFIG_ID        the EnclaveConfig<SourceVerifier> shared object
 #   ATTESTATION_REGISTRY_ID  the attestations Registry shared object
 #   GAS_BUDGET               default 100000000 (0.1 SUI)
 #
@@ -84,7 +85,7 @@ if ! $ATTEST; then
     echo "--no-attest: stopping with the signed response"
     exit 0
 fi
-for v in APP_PACKAGE_ID ENCLAVE_OBJECT_ID ATTESTATION_REGISTRY_ID; do
+for v in APP_PACKAGE_ID ENCLAVE_OBJECT_ID ENCLAVE_CONFIG_ID ATTESTATION_REGISTRY_ID; do
     [ -n "${!v:-}" ] || { echo "$v unset; stopping with the signed response (nothing recorded onchain)"; exit 0; }
 done
 
@@ -123,6 +124,7 @@ sui client ptb \
     --move-call "${APP_PACKAGE_ID}::source_verification::attest_source" \
         @"${ATTESTATION_REGISTRY_ID}" \
         @"${ENCLAVE_OBJECT_ID}" \
+        @"${ENCLAVE_CONFIG_ID}" \
         @"${PKG_ID}" \
         "'${SOURCE_HASH}'" \
         "'${RESP_GIT_URL}'" \
