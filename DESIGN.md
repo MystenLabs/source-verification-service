@@ -134,6 +134,38 @@ The digest is of the binary rather than of the release archive because the
 compiler may come from a cache or be the verifier's own executable; the binary is
 the thing that actually ran in every case.
 
+### The verifier is the same kind of artifact
+
+The program that *drives* the comparison — reading the publication metadata,
+fetching the toolchain, invoking it, fetching the on-chain package, comparing the
+results — is the `sui` binary too, baked into the image rather than downloaded.
+
+It is worth being explicit that this is not a stronger trust assumption than the
+one above, because it looks like one. A malicious compiler produces bytecode that
+matches a malicious source; a malicious verifier simply reports a match that did
+not happen. Both are complete breaks of the same property. Since the compiler is
+already an official release fetched at run time, taking the verifier from the same
+channel adds no new class of trust.
+
+What differs is *how each is pinned*. The compiler is not in the image, so it is
+recorded in the payload where a consumer can check it. The verifier is in the
+image, so it is covered by PCR0/PCR1 — a stronger binding, provided the image can
+be reproduced.
+
+That condition is why the verifier should be an official release rather than
+something built for the purpose. A published release artifact is already
+content-addressed and already fetchable, so reproducing the image means
+downloading it and checking its digest — introducing no artifact of this
+project's own that anyone must obtain by a different route, or trust by a
+different argument, than the toolchains they are downloading anyway.
+
+Until the verification code appears in a release, the image is built from a pinned
+revision **and** a pinned binary digest, because `cargo build --release` is not
+guaranteed to be byte reproducible: the revision records provenance, the digest is
+what pins the measurements. Both are in the `Makefile`, and a mismatch fails the
+build rather than silently producing an image whose PCRs do not match the
+published ones.
+
 ## Why not the git hash
 
 The obvious identifier for "which source" is the git commit. It is not used as
