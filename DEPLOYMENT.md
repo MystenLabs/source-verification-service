@@ -9,7 +9,7 @@ git history is the record of what came before.
 | | |
 | --- | --- |
 | `enclave` (vendored) | `0x5eb3bbb4325e2455cdeb34c3321749cf66eab7028b45456ff6124aa80d71cc1f` |
-| `source_verification` | `0xa46952734d2c5b96fd06c42512542a84f64e9af7c09371efc24880ed9f35bba9` |
+| `source_verification` | `0x5a0ce049e693bd1c9cf78b892c1657d8cb33df8bf4e03c5d947d3e3bf427d7dd` |
 | `attestations` (Mysten's, linked) | `0x6e0e1141d77448253ab434b008a01259e81c5c31bd1cdac8922a5256da690c09` |
 
 Addresses are also in each package's `Published.toml`, which is what the package
@@ -19,10 +19,10 @@ system reads; the table is for humans.
 
 | | |
 | --- | --- |
-| `EnclaveConfig<SourceVerifier>` (shared) | `0xd8ff4ceab179600cd429a00c40567c4f79b50854c4da303dfbc837053128e0c9` |
-| `Enclave<SourceVerifier>` (shared) | `0x42b8cdceaf133a0a38c7d2ee281ae64ee50ba0695600f2fcc595489b898c7367` |
-| `Cap<SourceVerifier>` | `0x5d7cb97ad15b81b5fc8a751018b30834d805150e482cbb5a291b18519f2dd225` |
-| `UpgradeCap` (source_verification) | `0x280cc92e3dbed614caf30295050efeb6234e119061cb357652bb845702e74bfa` |
+| `EnclaveConfig<SourceVerifier>` (shared) | `0x6cb16a18cb4df0d5f36aaac05cc16f81b9520f282b1b6fa60bf5f12aa8fc97a3` |
+| `Enclave<SourceVerifier>` (shared) | not yet registered against this config |
+| `Cap<SourceVerifier>` | `0xa199bc32fe27f981f49fbc8e4fbccfef8809a813064cc4f2688171b3c3fd6592` |
+| `UpgradeCap` (source_verification) | `0xd5cb5bdeb9fd9643022e0a3fea3c6588aeba496edc0ec8df4e75af3015dc0774` |
 | `attestations::Registry` (shared) | `0x5a8a789c0385d5e891519612a7d3d8ab36f1d9fc03d63cdabf1cefb3d848b568` |
 
 The `Cap` and the two upgrade capabilities are the three that can each
@@ -49,6 +49,19 @@ The EIF is 215 MB and its measurements depend on every digest pinned in the
 `Containerfile` and on `VERIFIER_SHA256` in the `Makefile`. Changing any of them
 changes the PCRs, which is the point.
 
+## Display
+
+`register_source_display` has **not** been called. It is a one-shot, and the
+Display it creates is append-only: `add_display_field` refuses a field that is
+already set, and nothing exposes overwrite, unset or clear. So `name` and
+`description` are permanent from the moment it runs and cannot be corrected --
+only added to. The strings are in the source and should be reviewed before that
+happens.
+
+`image_url` is deliberately not among them. It needs a stable public URL, and
+being append-only means it can be added later at no cost, whereas a wrong value
+could never be removed.
+
 ## Finding attestations
 
 An `Attestation<T>` is owned by an address derived from the package it is about,
@@ -56,7 +69,10 @@ not by whoever submitted it. So every attestation for a package is found by
 listing that address's objects — no event scanning, and no dependence on who paid
 the gas.
 
-The first attestation recorded by this deployment:
+The attestation below was recorded by the **previous** publish of
+`source_verification` (`0xa4695273…`), whose payload carried the two digests as
+`vector<u8>`. It is left here as the record of the first end-to-end run; its type
+refers to that superseded package.
 
 | | |
 | --- | --- |
