@@ -66,6 +66,33 @@ documents on chain, and the framework it lives in.
 **The `attestations` package.** Mysten's shared registry, and whoever holds its
 upgrade capability.
 
+**A Sui fullnode.** The enclave fetches the on-chain package from a hardcoded
+endpoint — `fullnode.mainnet.sui.io` or `fullnode.testnet.sui.io`, chosen by the
+request's `build_env`. That endpoint is trusted to return the real bytecode and
+linkage. A fullnode that returned attacker-chosen bytecode would have the enclave
+compare source against fabricated data and sign a match that is not true. The
+endpoints are operated by Mysten, so in practice this adds no party that
+[Trust roots](#trust-roots) does not already list — but it is a distinct way for
+the same party to produce a false attestation, and it is worth naming separately
+because the fix is different from the others.
+
+Two qualifications. The *untrusted parent instance* is not part of this: egress
+leaves the enclave over vsock to a proxy on the host, which performs the DNS
+lookup and the TCP connection, but TLS terminates **inside** the enclave against
+the certificate for the requested hostname. The host therefore sees only
+ciphertext and cannot substitute a response; it can only deny service. And the
+failure is one-directional in the dangerous sense — a fullnode returning *wrong*
+bytecode produces a mismatch and no attestation, which is harmless. Only a
+fullnode returning *attacker-chosen* bytecode that matches a malicious source
+produces a false positive.
+
+Removing the fullnode from the trust base means verifying the package against a
+checkpoint signed by the validator committee rather than taking an RPC response
+at its word — a light client in the enclave. That is a substantially larger piece
+of work and is not planned for the first release, but it is the direction that
+closes this properly, and querying several independent fullnodes and requiring
+agreement is a cheaper partial step.
+
 **Three capabilities held by this project**, each of which can independently
 forge an attestation:
 
