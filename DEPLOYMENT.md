@@ -8,8 +8,8 @@ git history is the record of what came before.
 
 | | |
 | --- | --- |
-| `enclave` (vendored) | `0x5eb3bbb4325e2455cdeb34c3321749cf66eab7028b45456ff6124aa80d71cc1f` |
-| `source_verification` | `0xa49f876e59626633aeeca4da76a6e8b9360b79ec3306e9abeb25bfeff869fcce` |
+| `enclave` (vendored) | `0x8358708a5f14133d7ca5f1a6c1a48dcdca1ce81c83e448851aec5e6cf03d8def` |
+| `source_verification` | `0xcb8431eec58b1da968ec30841bb026b478fcee3d744e44647d355f70c4b12775` |
 | `attestations` (Mysten's, linked) | `0x6e0e1141d77448253ab434b008a01259e81c5c31bd1cdac8922a5256da690c09` |
 
 Addresses are also in each package's `Published.toml`, which is what the package
@@ -19,11 +19,10 @@ system reads; the table is for humans.
 
 | | |
 | --- | --- |
-| `EnclaveConfig<SourceVerifier>` (shared) | see `Published.toml`; minted by the current publish |
-| `Enclave<SourceVerifier>` (shared) | not yet registered against this config |
-| `Cap<SourceVerifier>` | held by the publisher |
-| `Display<Attestation<SourceVerification>>` (shared) | `0xc979a864f3fbc4626455e42214bcc30c8f282b96edbac84e13a4fe1abeef05c8` |
-| `DisplayCap` (parked on the Registry) | `0x9a5cf50c1914bd4092a228b484796823779c4401474911e2769d49cecba8181c` |
+| `EnclaveConfig<SourceVerifier>` (shared) | `0xe4da114a4a5e35751cc730dd48c1a0588b27ef3cd35e91ab37bd58d91125cb57` |
+| `Enclave<SourceVerifier>` (shared) | `0xd450418a9e185fcec981e29ea34d7ee38eff6d71989cf1f95c0524af8772bbdc` |
+| `Cap<SourceVerifier>` | `0x7985f057e3f6df05704cdbb2ec9d943d3965f650ba6912844d4975765e7d721b` |
+| `Display<Attestation<SourceVerification>>` (shared) | registered for the current type; find it via the Registry's `DisplayCap` |
 | `attestations::Registry` (shared) | `0x5a8a789c0385d5e891519612a7d3d8ab36f1d9fc03d63cdabf1cefb3d848b568` |
 
 The `Cap` and the two upgrade capabilities are the three that can each
@@ -34,8 +33,8 @@ puts them in a multisig.
 ## Enclave image
 
 ```
-PCR0  928da0dc77eb59edfc53d1224245ffe922ce4544b50cb8ff067a11d5676885d01983575b9943ebb9b874523dfbe30c74
-PCR1  928da0dc77eb59edfc53d1224245ffe922ce4544b50cb8ff067a11d5676885d01983575b9943ebb9b874523dfbe30c74
+PCR0  4d4412ffa7d719cf2b23f4989d483f5b348ce8098985bac8dbd1608b6c59e198a264e325157b405cc30b3bc937027e7a
+PCR1  4d4412ffa7d719cf2b23f4989d483f5b348ce8098985bac8dbd1608b6c59e198a264e325157b405cc30b3bc937027e7a
 PCR2  21b9efbc184807662e966d34f390821309eeac6802309798826296bf3e8bec7c10edb30948c90ba67310f7b964fc500a
 ```
 
@@ -81,18 +80,26 @@ not by whoever submitted it. So every attestation for a package is found by
 listing that address's objects — no event scanning, and no dependence on who paid
 the gas.
 
-The attestation below was recorded by the **previous** publish of
-`source_verification` (`0xa4695273…`), whose payload carried the two digests as
-`vector<u8>`. It is left here as the record of the first end-to-end run; its type
-refers to that superseded package.
-
 | | |
 | --- | --- |
-| Attestation | `0x01093888ddab82931406b5153a57d8ee9d2768c90eff57818e35489e220cd0ec` |
+| Attestation | `0x52f2113eec38f0e785c18afd154568aefc5a3267e503755daefcdade95acdb37` |
 | Owner (derived) | `0x405cc60ce6fd586d1c7f451b852a258bc20df419039ae709ac5c1fc1f3e6b59c` |
 | Subject | the `attestations` package itself, `0x6e0e1141…` |
 | Source | `github.com/MystenLabs/attestations` @ `4729389c`, `packages/attestations` |
 | Rebuilt with | sui 1.72.2, sha256 `856000be173a9e9bc1fbecac9554fe107d1d2eac963ac29e9369b1af381f3555` |
+
+It renders through the Display as:
+
+> **Verified source**
+> The source at https://github.com/MystenLabs/attestations.git
+> (4729389cd5ef76d376a2733ec06d9b051c80c419), subdirectory packages/attestations,
+> compiles to the bytecode published at 0x6e0e1141…. Rebuilt with sui 1.72.2.
+> Source hash cf6f3499ea70df70437ee84603127165d68106b8f2e1cd7be517294e23276dc4.
+
+An earlier attestation, `0x01093888ddab82931406b5153a57d8ee9d2768c90eff57818e35489e220cd0ec`,
+was recorded against a superseded publish whose payload carried the digests as
+`vector<u8>`. It has the same derived owner, since that address depends only on
+the subject.
 
 ## Cost
 
