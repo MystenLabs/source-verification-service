@@ -1,0 +1,9 @@
+/out
+/verifier
+/target
+**/build
+*.env
+secrets.json
+user-data.sh
+trust-policy.json
+secrets-policy.json
