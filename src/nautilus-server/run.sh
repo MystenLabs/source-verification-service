@@ -22,6 +22,18 @@ busybox ip link set dev lo up
 
 # Add a hosts record, pointing target site calls to local loopback
 echo "127.0.0.1   localhost" > /etc/hosts
+echo "127.0.0.64   github.com" >> /etc/hosts
+echo "127.0.0.65   raw.githubusercontent.com" >> /etc/hosts
+echo "127.0.0.66   fullnode.testnet.sui.io" >> /etc/hosts
+# Release archives redirect off github.com to this host; without it the toolchain
+# download fails after the redirect, which reads as a broken download rather than
+# a missing egress rule. Verified: the asset URL 302s here in a single hop.
+echo "127.0.0.67   release-assets.githubusercontent.com" >> /etc/hosts
+# Needed to verify packages published on mainnet: verify-source compares against
+# the RPC of the client's active environment.
+echo "127.0.0.68   fullnode.mainnet.sui.io" >> /etc/hosts
+
+
 
 
 # == ATTENTION: code should be generated here that parses allowed_endpoints.yaml and populate domains here ===
@@ -41,6 +53,49 @@ echo "$JSON_RESPONSE" | jq -r 'to_entries[] | "\(.key)=\(.value)"' > /tmp/kvpair
 
 # == ATTENTION: code should be generated here that added all hosts to forward traffic ===
 # Traffic-forwarder-block
+python3 /traffic_forwarder.py 127.0.0.64 443 3 8101 &
+python3 /traffic_forwarder.py 127.0.0.65 443 3 8102 &
+python3 /traffic_forwarder.py 127.0.0.66 443 3 8103 &
+python3 /traffic_forwarder.py 127.0.0.67 443 3 8104 &
+python3 /traffic_forwarder.py 127.0.0.68 443 3 8105 &
+
+
+
+# Scratch space for verification, on a tmpfs with a fixed size.
+#
+# The enclave's root filesystem is the unpacked initramfs -- RAM, and unbounded:
+# a runaway download there consumes enclave memory until the kernel OOM-kills
+# something, taking down the enclave, its ephemeral key, and its onchain
+# registration with it. A sized tmpfs turns that into ENOSPC, which fails one
+# request. Verification is the only thing that writes at any scale, and it is
+# serialized, so this bounds the whole enclave's working set.
+#
+# TMPDIR is what sends the server's scratch here; it puts each request's
+# MOVE_HOME inside, so downloaded compilers and dependency checkouts are
+# accounted against this cap and removed with the request.
+#
+# SIZE: measured. One request needs a compiler (~135-210 MB depending on
+# release), one dependency checkout, and a source tree. The checkout dominates
+# and depends on which package system the publishing release used:
+#
+#   sui 1.30.1  800 MB   old system: whole-repository clone
+#   sui 1.45.3  715 MB   old system
+#   sui 1.60.1  296 MB   old system
+#   sui 1.75.2   53 MB   new system: sparse, shallow
+#
+# So ~1.2 GB for a realistic worst case, and 6G leaves room for a package with
+# several old-style dependencies. tmpfs consumes RAM only as it is written, so a
+# generous cap costs nothing until used -- but it only protects if the enclave
+# has memory to spare above it. Run the enclave with at least 12G
+# (`make run MEMORY=12288M`); the allocator default of 3072 MiB is below this cap
+# and would OOM before ENOSPC, defeating the point.
+#
+# Those figures accumulate per distinct framework revision, which is why each
+# request gets its own MOVE_HOME below rather than sharing one: three old
+# toolchains sharing a cache reached 1.8 GB, and the release history is long.
+mkdir -p /verify
+mount -t tmpfs -o size=6G,mode=0700 tmpfs /verify
+export TMPDIR=/verify
 
 # Listens on Local VSOCK Port 3000 and forwards to localhost 3000
 socat VSOCK-LISTEN:3000,reuseaddr,fork TCP:localhost:3000 &
