@@ -122,10 +122,25 @@ rather than an empty map. It has since merged upstream, but *after* the commit
 vendored here (`048bae1d`), so it is not in this baseline; the enclave-image PR
 carries it locally until a re-sync picks it up.
 
+## Local modifications
+
+One vendored file is no longer byte-identical to upstream:
+
+- `move/enclave/sources/enclave.move` — adds `Enclave::config_version` and
+  `EnclaveConfig::version` accessors. Both version fields are private upstream
+  with nothing exposing them, so no downstream package can read them, and the
+  contract needs them to enforce PCR rotation (see
+  [DESIGN.md](DESIGN.md#rotation-is-enforced)). The additions are purely additive
+  and worth offering upstream.
+
+Everything else remains byte-identical to the commit above.
+
 ## Re-syncing
 
 Nothing automated. To pick up upstream changes, diff the files above against a
 newer upstream commit, apply what is wanted, and update the commit recorded at the
-top of this file. The vendored surface is small and mostly stable; the Move
-`enclave` package is where an upstream change would matter most, since it defines
-the on-chain half of the trust model.
+top of this file. **`enclave.move` carries the local additions listed above**, so
+a re-sync must re-apply them rather than take upstream wholesale. The vendored
+surface is small and mostly stable; the Move `enclave` package is where an
+upstream change would matter most, since it defines the on-chain half of the trust
+model.
