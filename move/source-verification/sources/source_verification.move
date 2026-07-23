@@ -30,21 +30,6 @@ const EStaleEnclave: vector<u8> =
 /// match `IntentScope::SourceVerification` in the enclave server.
 const VERIFY_SCOPE: u8 = 0;
 
-// Expected enclave PCRs, set at publish and updatable by the `Cap` holder via
-// `enclave::update_pcrs`. From the EIF that carries the verifier (215 MB,
-// commit cbf3d34): `make ENCLAVE_APP=source-verification` then out/nitro.pcrs.
-// A deployer can `update_pcrs` to all-zeros for debug-mode testing.
-//
-// PCR2 has been identical across every build regardless of contents, so it is
-// PCR0/PCR1 that actually bind the image; pinning PCR2 costs nothing but proves
-// nothing either.
-const PCR0: vector<u8> =
-    x"4d4412ffa7d719cf2b23f4989d483f5b348ce8098985bac8dbd1608b6c59e198a264e325157b405cc30b3bc937027e7a";
-const PCR1: vector<u8> =
-    x"4d4412ffa7d719cf2b23f4989d483f5b348ce8098985bac8dbd1608b6c59e198a264e325157b405cc30b3bc937027e7a";
-const PCR2: vector<u8> =
-    x"21b9efbc184807662e966d34f390821309eeac6802309798826296bf3e8bec7c10edb30948c90ba67310f7b964fc500a";
-
 /// Marker `T` for this skill's `EnclaveConfig<T>` / `Enclave<T>`. A plain `drop`
 /// witness (not a one-time witness): only this module can name it, so only this
 /// module can create the enclave config/cap and verify signatures under it.
@@ -79,21 +64,20 @@ public struct SourceVerification has copy, store, drop {
     toolchain_digest: String,
 }
 
-/// Publish-time: mint the enclave `Cap<SourceVerifier>`, create the shared
-/// `EnclaveConfig<SourceVerifier>` holding the expected PCRs, and hand the cap to
-/// the publisher. Providers permissionlessly `register_enclave` their own
-/// `Enclave<SourceVerifier>` against this config.
+/// Publish-time: mint the enclave `Cap<SourceVerifier>` and hand it to the
+/// publisher. That cap is the one thing only this module can produce — it needs
+/// the `SourceVerifier` witness — so `init` mints it and nothing else.
+///
+/// Everything downstream is deployment data, set by the cap holder in a
+/// transaction rather than compiled in here: the shared
+/// `EnclaveConfig<SourceVerifier>` is created with the image's PCRs via
+/// `enclave::create_enclave_config`, and its PCRs are rotated with
+/// `enclave::update_pcrs`. So a new enclave image needs no change to this
+/// package. The concrete PCRs and the commands are in `DEPLOYMENT.md`. Providers
+/// then permissionlessly `register_enclave` their own `Enclave<SourceVerifier>`
+/// against that config.
 fun init(ctx: &mut TxContext) {
-    let cap = enclave::new_cap(SourceVerifier {}, ctx);
-    enclave::create_enclave_config(
-        &cap,
-        b"source-verification".to_string(),
-        PCR0,
-        PCR1,
-        PCR2,
-        ctx,
-    );
-    transfer::public_transfer(cap, ctx.sender());
+    transfer::public_transfer(enclave::new_cap(SourceVerifier {}, ctx), ctx.sender());
 }
 
 /// Verify an enclave-signed `SourceVerification` and record it as an
@@ -167,20 +151,47 @@ public fun attest_source(
 /// `link` to the attester's known domains, and interpolating the requester-supplied
 /// `git_url` would make it vary per attestation and point at hosts this service
 /// does not control.
+///
+/// Beyond `name`/`description`/`link`, each payload field is also its own Display
+/// field (`git_url`, `git_sha`, …), so a frontend can read the metadata structured
+/// rather than parsing the description. The schema is written out here — in the
+/// source — deliberately, rather than passed in at call time, because it *is* the
+/// contract's public shape and belongs where it can be reviewed.
 entry fun register_source_display(
     registry: &Registry,
     display_registry: &mut DisplayRegistry,
     ctx: &mut TxContext,
 ) {
+    let mut fields = vector[
+        b"name".to_string(),
+        b"description".to_string(),
+        b"link".to_string(),
+    ];
+    let mut values = vector[
+        b"Verified source".to_string(),
+        b"The source at {data.git_url} ({data.git_sha}), subdirectory {data.subdir}, compiles to the bytecode published at {data.pkg_id}. Rebuilt with sui {data.toolchain_version}. Source hash {data.source_hash}.".to_string(),
+        b"https://github.com/MystenLabs/source-verification-service".to_string(),
+    ];
+    // Each payload field, rendered as itself.
+    fields.push_back(b"git_url".to_string());
+    values.push_back(b"{data.git_url}".to_string());
+    fields.push_back(b"git_sha".to_string());
+    values.push_back(b"{data.git_sha}".to_string());
+    fields.push_back(b"subdir".to_string());
+    values.push_back(b"{data.subdir}".to_string());
+    fields.push_back(b"pkg_id".to_string());
+    values.push_back(b"{data.pkg_id}".to_string());
+    fields.push_back(b"toolchain_version".to_string());
+    values.push_back(b"{data.toolchain_version}".to_string());
+    fields.push_back(b"toolchain_digest".to_string());
+    values.push_back(b"{data.toolchain_digest}".to_string());
+    fields.push_back(b"source_hash".to_string());
+    values.push_back(b"{data.source_hash}".to_string());
     registry.register_display(
         display_registry,
         internal::permit<SourceVerification>(),
-        vector[b"name".to_string(), b"description".to_string(), b"link".to_string()],
-        vector[
-            b"Verified source".to_string(),
-            b"The source at {data.git_url} ({data.git_sha}), subdirectory {data.subdir}, compiles to the bytecode published at {data.pkg_id}. Rebuilt with sui {data.toolchain_version}. Source hash {data.source_hash}.".to_string(),
-            b"https://github.com/MystenLabs/source-verification-service".to_string(),
-        ],
+        fields,
+        values,
         ctx,
     );
 }
@@ -210,7 +221,7 @@ fun signing_bytes_match_rust() {
 fun setup(scenario: &mut test_scenario::Scenario, alice: address): (Registry, EnclaveConfig<SourceVerifier>, Enclave<SourceVerifier>) {
     attestations::attestations::init_for_testing(scenario.ctx());
     let cap = enclave::new_cap(SourceVerifier {}, scenario.ctx());
-    enclave::create_enclave_config(&cap, b"test".to_string(), PCR0, PCR1, PCR2, scenario.ctx());
+    enclave::create_enclave_config(&cap, b"test".to_string(), x"00", x"00", x"00", scenario.ctx());
     let enclave = enclave::new_enclave_for_testing<SourceVerifier>(
         x"d04a166e8dcd71127be0012f3e882c9b8c355af7d43dd98f8200b69eb17e312f",
         scenario.ctx(),
@@ -233,7 +244,7 @@ fun attest_source_rejects_stale_enclave() {
 
     scenario.next_tx(alice);
     let cap: enclave::Cap<SourceVerifier> = scenario.take_from_sender();
-    enclave::update_pcrs(&mut config, &cap, PCR0, PCR1, PCR2);
+    enclave::update_pcrs(&mut config, &cap, x"01", x"01", x"01");
 
     let _ = attest_source(
         object::id(&registry),
