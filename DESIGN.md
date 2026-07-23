@@ -110,8 +110,27 @@ ideally with a timelock on `update_pcrs` and on upgrades.
 **Not a trust root: whoever runs the enclave.** `register_enclave` is
 permissionless. Anyone who runs the attested image can register their own
 `Enclave<SourceVerifier>` against the shared config and serve attestations, and
-`attest_source` accepts any of them. Multi-provider is inherent to the design
-rather than a feature added to it.
+`attest_source` accepts any registered enclave *at the current config version*
+(see below). Multi-provider is inherent to the design rather than a feature added
+to it.
+
+### Rotation is enforced
+
+When the image changes, the `EnclaveConfig` maintainer calls `update_pcrs`, which
+bumps a version counter. `attest_source` records a signature only if the enclave
+registered against the *current* version. So rotating the PCRs immediately stops
+enclaves running the old image from producing attestations — the operator does
+not have to cooperate, and there is no window in which a rotated-out image is
+still accepted.
+
+Without this, revocation would depend on someone destroying each stale `Enclave`
+object, which makes it a cleanup task rather than a control. The check is what
+turns `update_pcrs` into an actual kill switch: raise the config version and every
+enclave below it is rejected on its next call.
+
+Reading the two version fields requires accessors (`Enclave::config_version`,
+`EnclaveConfig::version`) that the upstream `enclave` package does not expose;
+this repository adds them to its vendored copy.
 
 ## The unmeasured compiler
 
@@ -231,15 +250,14 @@ releases.
 
 ## Known gaps
 
-**No revocation.** `attest_source` does not check
-`enclave.config_version == config.version`, so an attestation signed by an enclave
-whose PCRs have since been rotated remains submittable for as long as that
-`Enclave` object exists. Adding the check is a small change and a deliberate
-decision, not an oversight.
-
 **No freshness check.** A signed response is submittable indefinitely, and by
 anyone who sees it. Duplicate attestations for one package are possible. Since
 submission costs gas and confers no advantage, this is accepted.
+
+Note that this is *within* a config version. Rotating the PCRs does revoke: an
+enclave signature is only recorded if the enclave registered against the current
+`EnclaveConfig` version (see [Rotation is enforced](#rotation-is-enforced)), so
+an old response stops being submittable once `update_pcrs` runs.
 
 **Egress is an allowlist, so only some hosts are verifiable.** The enclave has no
 DNS — only fixed `/etc/hosts` entries. This blocks SSRF neatly, but it also means
