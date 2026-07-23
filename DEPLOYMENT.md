@@ -9,11 +9,19 @@ git history is the record of what came before.
 | | |
 | --- | --- |
 | `enclave` (vendored) | `0x8358708a5f14133d7ca5f1a6c1a48dcdca1ce81c83e448851aec5e6cf03d8def` |
-| `source_verification` | `0xcb8431eec58b1da968ec30841bb026b478fcee3d744e44647d355f70c4b12775` |
+| `source_verification` | original-id `0xcb8431ee…`, latest version `0x270c883b…` |
 | `attestations` (Mysten's, linked) | `0x6e0e1141d77448253ab434b008a01259e81c5c31bd1cdac8922a5256da690c09` |
 
 Addresses are also in each package's `Published.toml`, which is what the package
 system reads; the table is for humans.
+
+`source_verification` keeps one lineage: it is *upgraded*, not republished, as the
+service evolves, so its original-id and its recorded attestations are stable. The
+type is identified by the original-id, so every attestation stays the same type
+across upgrades. This is viable because the changes so far have been
+upgrade-compatible — including *removing* an `entry` function (a testnet-only
+Display migration helper), which the Compatible policy allows for non-`public`
+functions.
 
 ## Objects
 
