@@ -80,14 +80,13 @@ upstream commit, reviewable on its own:
 - **`src/nautilus-server/Cargo.toml`, `Cargo.lock`** — drops the example-only
   features and their optional dependencies (`regex`, `sui-crypto`,
   `sui-sdk-types`, `seal-sdk`), and defaults the `source-verification` feature.
-- **`move/enclave/sources/enclave.move`** — adds `Enclave::config_version` and
-  `EnclaveConfig::version` accessors, which upstream does not expose. The contract
-  needs them to enforce PCR rotation (see
-  [DESIGN.md](DESIGN.md#rotation-is-enforced)). Purely additive; worth offering
-  upstream.
 - **`Containerfile`, `Makefile`, `src/nautilus-server/run.sh`** — the enclave image
   build, changed to carry the verifier and its runtime, pin every input, and
-  configure verification's egress and scratch space. See the image pull request.
+  configure verification's egress and scratch space.
+
+The on-chain contract PR, which stacks on this one, additionally modifies
+`move/enclave/sources/enclave.move` (adding two accessors); it is documented
+there.
 
 ## Changes made upstream
 
