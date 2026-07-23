@@ -195,11 +195,6 @@ the hash, so contents cannot be shuffled between files undetected. It answers
 exactly the question a consumer has — *is this the same package* — and is
 reproducible from the source alone.
 
-> **Implementation note.** The current code hashes *every* file in the package
-> directory rather than this defined set. That is a bug — for a root-level
-> package it would even fold in `.git` — and this section describes the intended
-> behavior, which the code should be changed to match.
-
 The residual risk is that a consumer follows `git_url` to read source that a
 SHA-1 collision has substituted. The attestation itself is unaffected; only
 discovery is misled. The mitigation is to make checking `source_hash` easy enough
