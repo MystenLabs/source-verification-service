@@ -80,10 +80,13 @@ upstream commit, reviewable on its own:
 - **`Containerfile`, `Makefile`, `src/nautilus-server/run.sh`** — the enclave image
   build, changed to carry the verifier and its runtime, pin every input, and
   configure verification's egress and scratch space.
-
-The on-chain contract PR, which stacks on this one, additionally modifies
-`move/enclave/sources/enclave.move` (adding two accessors); it is documented
-there.
+- **`move/enclave/sources/enclave.move`** — adds `Enclave::config_version` and
+  `EnclaveConfig::version` accessors. Both version fields are private upstream with
+  nothing exposing them, so no downstream package can read them, and the contract
+  needs them to enforce PCR rotation (see
+  [DESIGN.md](DESIGN.md#rotation-is-enforced)). Purely additive; worth offering
+  upstream. A re-sync must re-apply these rather than take upstream `enclave.move`
+  wholesale.
 
 ## Changes made upstream
 
@@ -103,25 +106,10 @@ shipping `allowed_endpoints.yaml` into the image so `/health_check` reports
 endpoint status rather than an empty map. Until it merges, this repository carries
 that change locally.
 
-## Local modifications
-
-One vendored file is no longer byte-identical to upstream:
-
-- `move/enclave/sources/enclave.move` — adds `Enclave::config_version` and
-  `EnclaveConfig::version` accessors. Both version fields are private upstream
-  with nothing exposing them, so no downstream package can read them, and the
-  contract needs them to enforce PCR rotation (see
-  [DESIGN.md](DESIGN.md#rotation-is-enforced)). The additions are purely additive
-  and worth offering upstream.
-
-Everything else remains byte-identical to the commit above.
-
 ## Re-syncing
 
 Nothing automated. To pick up upstream changes, diff the files above against a
 newer upstream commit, apply what is wanted, and update the commit recorded at the
-top of this file. **`enclave.move` carries the local additions listed above**, so
-a re-sync must re-apply them rather than take upstream wholesale. The vendored
-surface is small and mostly stable; the Move `enclave` package is where an
-upstream change would matter most, since it defines the on-chain half of the trust
-model.
+top of this file. The vendored surface is small and mostly stable; the Move
+`enclave` package is where an upstream change would matter most, since it defines
+the on-chain half of the trust model.
