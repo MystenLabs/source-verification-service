@@ -41,13 +41,19 @@ PCR2  21b9efbc184807662e966d34f390821309eeac6802309798826296bf3e8bec7c10edb30948
 PCR0 and PCR1 are what bind the image. PCR2 has been identical across every build
 regardless of contents, so it is pinned but proves nothing.
 
-These are compiled into `source_verification.move` and were set at publish. A new
-image is rolled out with `enclave::update_pcrs` using the `Cap`, not by
-republishing.
+The PCRs are **not** compiled into the contract — they are deployment data. After
+publishing, the `Cap` holder creates the shared `EnclaveConfig` with them:
 
-The EIF is 215 MB and its measurements depend on every digest pinned in the
-`Containerfile` and on `VERIFIER_SHA256` in the `Makefile`. Changing any of them
-changes the PCRs, which is the point.
+```shell
+sui client call --package "$ENCLAVE_PKG" --module enclave --function create_enclave_config \
+    --type-args "$APP_PKG::source_verification::SourceVerifier" \
+    --args "$CAP" source-verification 0x4d4412ff…027e7a 0x4d4412ff…027e7a 0x21b9efbc…c500a
+```
+
+and rolls out a new image later with `enclave::update_pcrs` on the same `Cap`, no
+republish. The EIF is 215 MB and its measurements depend on every digest pinned in
+the `Containerfile` and on `VERIFIER_SHA256` in the `Makefile`; changing any of
+them changes the PCRs, which is the point.
 
 ## Display
 
