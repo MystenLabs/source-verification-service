@@ -12,6 +12,9 @@ published with, and compares the result against the on-chain bytecode and
 linkage. If they match it signs a statement to that effect. Anyone can record
 that statement on chain as an `Attestation<SourceVerification>`.
 
+The current implementation requires the source — the root package and its
+dependencies — to be hosted on GitHub; see [Known gaps](#known-gaps).
+
 ## What an attestation claims
 
 Precisely this:
@@ -67,31 +70,11 @@ documents on chain, and the framework it lives in.
 upgrade capability.
 
 **A Sui fullnode.** The enclave fetches the on-chain package from a hardcoded
-endpoint — `fullnode.mainnet.sui.io` or `fullnode.testnet.sui.io`, chosen by the
-request's `build_env`. That endpoint is trusted to return the real bytecode and
-linkage. A fullnode that returned attacker-chosen bytecode would have the enclave
-compare source against fabricated data and sign a match that is not true. The
-endpoints are operated by Mysten, so in practice this adds no party that
-[Trust roots](#trust-roots) does not already list — but it is a distinct way for
-the same party to produce a false attestation, and it is worth naming separately
-because the fix is different from the others.
-
-Two qualifications. The *untrusted parent instance* is not part of this: egress
-leaves the enclave over vsock to a proxy on the host, which performs the DNS
-lookup and the TCP connection, but TLS terminates **inside** the enclave against
-the certificate for the requested hostname. The host therefore sees only
-ciphertext and cannot substitute a response; it can only deny service. And the
-failure is one-directional in the dangerous sense — a fullnode returning *wrong*
-bytecode produces a mismatch and no attestation, which is harmless. Only a
-fullnode returning *attacker-chosen* bytecode that matches a malicious source
-produces a false positive.
-
-Removing the fullnode from the trust base means verifying the package against a
-checkpoint signed by the validator committee rather than taking an RPC response
-at its word — a light client in the enclave. That is a substantially larger piece
-of work and is not planned for the first release, but it is the direction that
-closes this properly, and querying several independent fullnodes and requiring
-agreement is a cheaper partial step.
+endpoint (mainnet or testnet, by `build_env`) and trusts it to return the real
+bytecode. This could be relaxed in the future by verifying against a
+committee-signed checkpoint. It adds no new party — the endpoints are Mysten's —
+and the parent instance is *not* trusted here: TLS terminates inside the enclave,
+so the host can deny service but not tamper.
 
 **Three capabilities held by this project**, each of which can independently
 forge an attestation:
@@ -136,7 +119,8 @@ this repository adds them to its vendored copy.
 
 `verify-source` rebuilds a package with the toolchain that published it —
 downloaded at run time, because the service must handle packages published by
-any historical release. The enclave's PCRs measure the *image*; they cannot
+any historical or future release. The enclave's PCRs measure the *image*; they
+cannot
 measure something the image fetches later.
 
 So the attestation would otherwise assert a rebuild without saying what performed
@@ -201,16 +185,26 @@ compare it against the SHA-1 original. A commit hash also covers the whole
 repository, so an unrelated change elsewhere in a monorepo would change the
 identifier of an untouched package.
 
-`source_hash` is a blake2b256 over a sorted manifest of the package directory:
-for each file, its path, a NUL, and the hash of its contents. Paths and file
-boundaries are part of the hash, so contents cannot be shuffled between files
-undetected. It answers exactly the question a consumer has — *is this the same
-package* — and it is reproducible from the directory alone.
+`source_hash` is a blake2b256 over a sorted manifest of the package's source: for
+each file, its path **relative to the package directory**, a NUL, and the hash of
+its contents. The set of files hashed is what determines the build — everything
+under `sources/`, plus `Move.toml`, `Move.lock`, and `Published.toml` — and
+nothing else, so an unrelated file (a README, a test fixture, a stray `build/`
+directory) does not change the identifier. Paths and file boundaries are part of
+the hash, so contents cannot be shuffled between files undetected. It answers
+exactly the question a consumer has — *is this the same package* — and is
+reproducible from the source alone.
+
+> **Implementation note.** The current code hashes *every* file in the package
+> directory rather than this defined set. That is a bug — for a root-level
+> package it would even fold in `.git` — and this section describes the intended
+> behavior, which the code should be changed to match.
 
 The residual risk is that a consumer follows `git_url` to read source that a
 SHA-1 collision has substituted. The attestation itself is unaffected; only
 discovery is misled. The mitigation is to make checking `source_hash` easy enough
-that nobody skips it.
+that nobody skips it — a `verify-source` subcommand or a short script that prints
+the hash for a local checkout, so comparing is one command. (Not yet built.)
 
 ## Design decisions
 
@@ -260,8 +254,12 @@ enclave signature is only recorded if the enclave registered against the current
 an old response stops being submittable once `update_pcrs` runs.
 
 **Egress is an allowlist, so only some hosts are verifiable.** The enclave has no
-DNS — only fixed `/etc/hosts` entries. This blocks SSRF neatly, but it also means
-packages hosted outside the allowlisted forges cannot be verified at all.
+DNS — only fixed `/etc/hosts` entries — which blocks SSRF neatly but limits what
+can be verified. The allowlist is **GitHub only** to start, so the root package
+*and every dependency it resolves* must be hosted on GitHub; a package with a
+dependency fetched from anywhere else cannot be verified until that host is added.
+Widening this is a matter of extending the allowlist and the traffic forwarder,
+not a design change.
 
 **PCR2 does not bind anything.** It has been identical across every image built
 here regardless of contents. PCR0 and PCR1 are what tie an attestation to an
