@@ -95,10 +95,20 @@ done
 # address literal. The digests are already hex strings and pass through as
 # strings; only the signature is still a vector<u8>, which `sui client ptb`
 # accepts only as a vector[..u8] literal.
+#
+# These values come from the enclave response, which this script does not
+# re-derive and fetches over plain http. A hostile endpoint (the multi-provider
+# model makes pointing at someone else's enclave normal) or a MITM can therefore
+# put anything here. They are shell-quoted with shlex.quote before eval --
+# repr() is NOT shell quoting: it can emit a double-quoted string, inside which
+# `$(...)` still executes, so a value of `'$(cmd)` would run cmd on this machine.
 eval "$(echo "$RESPONSE" | python3 -c '
-import json, sys
+import json, shlex, sys
 r = json.load(sys.stdin)
 d = r["response"]["data"]
+
+def q(name, value):
+    print(f"{name}={shlex.quote(value)}")
 
 def vec(byts):
     return "vector[" + ", ".join(f"{b}u8" for b in byts) + "]"
@@ -106,15 +116,15 @@ def vec(byts):
 def hexbytes(s):
     return [int(s[i:i+2], 16) for i in range(0, len(s), 2)]
 
-print(f"""PKG_ID=0x{"".join(f"{b:02x}" for b in d["pkg_id"])}""")
-print(f"""SOURCE_HASH={d["source_hash"]!r}""")
-print(f"""TOOLCHAIN_DIGEST={d["toolchain_digest"]!r}""")
-print(f"""SIG_VEC={vec(hexbytes(r["signature"]))!r}""")
-print(f"""TIMESTAMP_MS={r["response"]["timestamp_ms"]}""")
-print(f"""TOOLCHAIN_VERSION={d["toolchain_version"]!r}""")
-print(f"""RESP_GIT_URL={d["git_url"]!r}""")
-print(f"""RESP_SUBDIR={d["subdir"]!r}""")
-print(f"""RESP_GIT_SHA={d["git_sha"]!r}""")
+q("PKG_ID", "0x" + "".join(f"{b:02x}" for b in d["pkg_id"]))
+q("SOURCE_HASH", d["source_hash"])
+q("TOOLCHAIN_DIGEST", d["toolchain_digest"])
+q("SIG_VEC", vec(hexbytes(r["signature"])))
+q("TIMESTAMP_MS", str(r["response"]["timestamp_ms"]))
+q("TOOLCHAIN_VERSION", d["toolchain_version"])
+q("RESP_GIT_URL", d["git_url"])
+q("RESP_SUBDIR", d["subdir"])
+q("RESP_GIT_SHA", d["git_sha"])
 ')"
 
 echo "recording attestation for $PKG_ID"
