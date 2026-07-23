@@ -27,6 +27,9 @@ security review. A verified package can still be malicious.
 - **[VENDORED.md](VENDORED.md)** — this builds on
   [Nautilus](https://github.com/MystenLabs/nautilus), vendored rather than forked.
   This records which commit, and how to verify the import.
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** — the current testnet deployment: package and
+  object ids, the enclave measurements, and how to reproduce the image that
+  produces them.
 
 ## Layout
 
