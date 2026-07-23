@@ -24,3 +24,6 @@ security review. A verified package can still be malicious.
 - **[DESIGN.md](DESIGN.md)** — what an attestation claims, what it deliberately
   does not, and everything that has to hold for it to be sound. Start here; the
   rest is best judged against the contract it states.
+- **[VENDORED.md](VENDORED.md)** — this builds on
+  [Nautilus](https://github.com/MystenLabs/nautilus), vendored rather than forked.
+  This records which commit, and how to verify the import.
