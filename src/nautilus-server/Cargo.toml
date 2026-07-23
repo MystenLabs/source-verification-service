@@ -27,13 +27,11 @@ nsm_api = { git = "https://github.com/aws/aws-nitro-enclaves-nsm-api.git/", rev 
 bcs = "0.1.6"
 lazy_static = "1.4"
 uuid = { version = "1.0", features = ["v4"] }
-regex = { version = "1.5", optional = true }
 
-sui-sdk-types = { version = "0.1.0", features = ["serde", "hash"], optional = true }
-sui-crypto = { version = "0.1.0", features = ["ed25519"], optional = true }
-seal-sdk = { git = "https://github.com/MystenLabs/seal", rev = "cfb29d2e08ff1ae34bfe8dfb6c2f0849eaf84054", package = "seal-sdk", optional = true }
-
+# This service ships one app. The feature is kept, and defaulted, so the build
+# matches the Nautilus template's `--features <app>` convention and the
+# Containerfile's `--no-default-features --features source-verification` still
+# selects it explicitly.
 [features]
-weather-example = []
-twitter-example = ["regex"]
-seal-example = ["sui-crypto", "sui-sdk-types", "seal-sdk"]
+default = ["source-verification"]
+source-verification = []
