@@ -237,6 +237,69 @@ accumulate per framework revision — packages published by older releases clone
 whole repositories, 300–800 MB each, and there are over a hundred verifiable
 releases.
 
+## Dependencies: soundness versus reproducibility
+
+A package is built against dependencies, and a natural worry is that an unpinned
+dependency lets the rebuild — and so the verification — drift. The guarantee
+splits cleanly, and the two halves have very different answers.
+
+**Soundness is not affected.** A dependency contributes two things to the rebuilt
+root package, and `verify-source` compares both against the immutable on-chain
+package:
+
+- *Interface and inlined code.* A dependency's public types and functions are what
+  the root compiles against, and a dependency's `macro fun`s are expanded into the
+  root's own bytecode at compile time. So a change in either surfaces in the root
+  bytecode, which is compared byte-for-byte. A divergent rebuild fails to match; it
+  cannot silently pass.
+- *Linkage.* The linkage table pins each used dependency to a storage id — a
+  version. A dependency re-resolved to a different version changes that storage id,
+  and the linkage comparison rejects it.
+
+So a re-resolved dependency cannot produce a false positive: any real difference
+lands in the bytecode or the linkage, both checked against the package that is
+actually published. (Test code is out of scope: it is not built into the published
+package and not attested — `verify-source` dumps the published bytecode, and the
+enclave hashes only `sources/` and the manifests — so a macro that changes only
+test behavior is neither covered nor needs to be.)
+
+**Reproducibility can be affected, and is the real question.** The attestation is
+only a [reverifiable cache](#why-it-is-worth-anything) if a later re-run reaches
+the same answer. With an unpinned dependency it might not: the same source could
+verify today and fail next month, when a branch or an MVR name resolves to a newer
+version whose linkage no longer matches the on-chain package. The attestation was
+true when made, but stops being reproducible — and a consumer taking a dependency
+on the "verified" package is the party who cares.
+
+Detecting the unpinned case is where it gets complicated, because the legacy and
+modern package systems record dependencies differently and no single check covers
+both:
+
+- **A moving lockfile revision.** `verify-source`'s `moving_revisions` flags a
+  dependency whose *lockfile* `rev` is not a commit hash — a branch or a tag. This
+  catches legacy packages and any lockfile that names a moving ref, and it reads
+  only the lockfile, so it is a cheap up-front check.
+- **A build that re-resolves past a pinned lock.** A modern package can pin commit
+  hashes in its lockfile yet declare a dependency by a moving name (an MVR name,
+  e.g. `@mysten/attestations`). If the build re-resolved that name and rewrote the
+  lock rather than honoring the pinned hash, `moving_revisions` sees only commit
+  hashes and passes, but the build used something else. Comparing the lockfile
+  before and after the build would catch this — *but only if the build rewrites the
+  lock.*
+- **The gap between them.** A legacy package does not record pinned deps in its
+  lockfile at all, so a before/after comparison sees no change and catches nothing
+  there — that case needs `moving_revisions`. A modern re-resolution passes
+  `moving_revisions` — that case needs the before/after comparison. The two are
+  complementary, and whether even both together are sufficient depends on how each
+  toolchain actually resolves dependencies.
+
+This is **unresolved and under discussion**, recorded here to be worked out rather
+than because it is settled. Open questions: whether a modern build can in fact
+re-resolve an MVR name past a commit-pinned lock; whether the service should
+*reject* an unreproducible package or merely record that it is not reproducible;
+and whether reproducibility should be enforced in `verify-source` — so every
+consumer of the tool gets it — or only in this service.
+
 ## Known gaps
 
 **No freshness check.** A signed response is submittable indefinitely, and by
