@@ -24,24 +24,3 @@ security review. A verified package can still be malicious.
 - **[DESIGN.md](DESIGN.md)** — what an attestation claims, what it deliberately
   does not, and everything that has to hold for it to be sound. Start here; the
   rest is best judged against the contract it states.
-
-## Layout
-
-```
-move/
-  enclave/               vendored Nautilus enclave package (Enclave, EnclaveConfig)
-  source-verification/   the attestation contract, and its client script
-src/nautilus-server/
-  src/apps/
-    source-verification/ the enclave application
-  ...                    vendored Nautilus server skeleton
-Containerfile, Makefile  the reproducible enclave image build
-```
-
-## Status
-
-Working end to end on testnet: an enclave verifies a package and the result is
-recorded on chain, rendering through its Display. It is not audited, and
-[DESIGN.md](DESIGN.md#known-gaps) lists what is deliberately unfinished — no
-freshness check, an availability endpoint that is unprotected, egress limited to
-an allowlist. Read those before relying on it.
