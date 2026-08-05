@@ -27,3 +27,12 @@ security review. A verified package can still be malicious.
 - **[VENDORED.md](VENDORED.md)** — this builds on
   [Nautilus](https://github.com/MystenLabs/nautilus), vendored rather than forked.
   This records which commit, and how to verify the import.
+
+## Layout
+
+```
+move/
+  enclave/               vendored Nautilus enclave package (Enclave, EnclaveConfig)
+src/nautilus-server/     vendored Nautilus server skeleton
+Containerfile, Makefile  the reproducible enclave image build
+```
