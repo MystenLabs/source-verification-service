@@ -33,6 +33,11 @@ security review. A verified package can still be malicious.
 ```
 move/
   enclave/               vendored Nautilus enclave package (Enclave, EnclaveConfig)
-src/nautilus-server/     vendored Nautilus server skeleton
+src/nautilus-server/
+  src/apps/
+    source-verification/ the enclave application
+  src/source_hash.rs     the source-hash, shared with the enclave
+  src/bin/source-hash.rs the local tool that prints it
+  ...                    vendored Nautilus server skeleton
 Containerfile, Makefile  the reproducible enclave image build
 ```
