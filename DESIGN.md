@@ -121,6 +121,14 @@ object, which makes it a cleanup task rather than a control. The check is what
 turns `update_pcrs` into an actual kill switch: raise the config version and every
 enclave below it is rejected on its next call.
 
+What rotation does *not* do is invalidate attestations already recorded. Their
+claim — that a source compiles to an on-chain package — does not depend on which
+enclave verified it; anyone can re-run the check and reach the same answer. So
+rotating for a routine image change leaves every prior attestation valid. Retiring
+one already made is a separate, deliberate action (the `attestations` package's
+`revoke`), reserved for an image found to have produced *wrong* attestations — not
+something a version bump triggers.
+
 Reading the two version fields requires accessors (`Enclave::config_version`,
 `EnclaveConfig::version`) that the upstream `enclave` package does not expose;
 this repository adds them to its vendored copy.
