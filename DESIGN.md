@@ -76,6 +76,16 @@ committee-signed checkpoint. It adds no new party — the endpoints are Mysten's
 and the parent instance is *not* trusted here: TLS terminates inside the enclave,
 so the host can deny service but not tamper.
 
+**The compiler and verifier, and GitHub.** The rebuild uses the `sui` compiler
+(downloaded at run time) and the `sui` verifier (baked into the image) — both
+official releases fetched from GitHub. A substituted compiler produces bytecode
+matching a malicious source; a substituted verifier reports a match that never
+happened; so those binaries, and GitHub as their host, are trusted. The verifier
+is bound by the PCRs and the compiler is recorded in the payload
+(`toolchain_digest`); [The unmeasured compiler](#the-unmeasured-compiler) and
+[The verifier is the same kind of artifact](#the-verifier-is-the-same-kind-of-artifact)
+treat both in full.
+
 **Three capabilities held by this project**, each of which can independently
 forge an attestation:
 
@@ -162,12 +172,14 @@ downloading it and checking its digest — introducing no artifact of this
 project's own that anyone must obtain by a different route, or trust by a
 different argument, than the toolchains they are downloading anyway.
 
-Until the verification code appears in a release, the image is built from a pinned
-revision **and** a pinned binary digest, because `cargo build --release` is not
-guaranteed to be byte reproducible: the revision records provenance, the digest is
-what pins the measurements. Both are in the `Makefile`, and a mismatch fails the
-build rather than silently producing an image whose PCRs do not match the
-published ones.
+The verification code has since shipped in a sui release (testnet-v1.77.1), so that
+download is now possible; migrating the image to it — pinned by version and digest,
+deleting the build step — is planned but not yet done. Today the image still builds
+the verifier from a pinned revision **and** a pinned binary digest, because `cargo
+build --release` is not guaranteed to be byte reproducible: the revision records
+provenance, the digest is what pins the measurements. Both are in the `Makefile`,
+and a mismatch fails the build rather than silently producing an image whose PCRs
+do not match the published ones.
 
 ## Why not the git hash
 
