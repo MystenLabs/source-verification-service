@@ -82,10 +82,11 @@ they arrive here as part of the vendored baseline rather than as local patches:
   running prebuilt glibc binaries in an enclave, which this service requires, since
   the image is musl-based and the Move compiler it runs is not.
 
-One further fix is open: [nautilus#35](https://github.com/MystenLabs/nautilus/pull/35),
-shipping `allowed_endpoints.yaml` into the image so `/health_check` reports
-endpoint status rather than an empty map. Until it merges, this repository carries
-that change locally.
+A third fix, [nautilus#35](https://github.com/MystenLabs/nautilus/pull/35), ships
+`allowed_endpoints.yaml` into the image so `/health_check` reports endpoint status
+rather than an empty map. It has since merged upstream, but *after* the commit
+vendored here (`048bae1d`), so it is not in this baseline; the enclave-image PR
+carries it locally until a re-sync picks it up.
 
 ## Re-syncing
 
