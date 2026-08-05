@@ -20,6 +20,8 @@ pub mod app {
 
 pub mod common;
 
+pub mod source_hash;
+
 /// App state. This service holds only the ephemeral keypair generated on boot;
 /// it takes no secrets, so there is nothing else to carry.
 pub struct AppState {

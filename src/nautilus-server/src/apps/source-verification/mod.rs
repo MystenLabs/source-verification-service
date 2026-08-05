@@ -13,7 +13,7 @@ use crate::EnclaveError;
 use axum::extract::State;
 use axum::Json;
 use fastcrypto::encoding::{Encoding, Hex};
-use fastcrypto::hash::{Blake2b256, HashFunction, Sha256};
+use fastcrypto::hash::{HashFunction, Sha256};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::path::{Path, PathBuf};
@@ -107,7 +107,8 @@ pub async fn process_data(
     // recorded in the source's Published.toml for this env. What it compared
     // against, and what compiled it, come back from verify-source itself.
     prune_to_build_inputs(&package_dir)?;
-    let source_hash = hash_dir(&package_dir)?;
+    let source_hash = crate::source_hash::source_hash(&package_dir)
+        .map_err(|e| err(format!("source_hash {package_dir:?}: {e}")))?;
     let verified = run_verify_source(&package_dir, &req.build_env, &workdir.path.join("move"))?;
     let toolchain = std::fs::read(&verified.binary_path)
         .map_err(|e| err(format!("read toolchain {:?}: {e}", verified.binary_path)))?;
@@ -336,44 +337,6 @@ fn prune_to_build_inputs(dir: &Path) -> Result<(), EnclaveError> {
             std::fs::remove_file(&path)
         };
         removed.map_err(|e| err(format!("prune {path:?}: {e}")))?;
-    }
-    Ok(())
-}
-
-/// Lowercase hex of a blake2b256 over a lexicographically-sorted manifest of the
-/// package directory:
-/// for each file, `<relative path>` + NUL + `blake2b256(contents)`. Reproducible
-/// from the same source tree; filenames and file boundaries are part of the hash
-/// so content cannot be shuffled between files undetected. Runs after
-/// `prune_to_build_inputs`, so "the package directory" is exactly the build inputs.
-fn hash_dir(dir: &Path) -> Result<String, EnclaveError> {
-    let mut files = Vec::new();
-    collect_files(dir, dir, &mut files)?;
-    files.sort();
-    let mut manifest = Blake2b256::new();
-    for rel in files {
-        let content = std::fs::read(dir.join(&rel)).map_err(|e| err(format!("read {rel}: {e}")))?;
-        manifest.update(rel.as_bytes());
-        manifest.update([0u8]);
-        manifest.update(Blake2b256::digest(content).digest);
-    }
-    Ok(Hex::encode(manifest.finalize().digest))
-}
-
-/// Collect files under `dir` as paths relative to `root`.
-fn collect_files(root: &Path, dir: &Path, out: &mut Vec<String>) -> Result<(), EnclaveError> {
-    for entry in std::fs::read_dir(dir).map_err(|e| err(format!("readdir {dir:?}: {e}")))? {
-        let path = entry.map_err(|e| err(format!("direntry: {e}")))?.path();
-        if path.is_dir() {
-            collect_files(root, &path, out)?;
-        } else {
-            out.push(
-                path.strip_prefix(root)
-                    .unwrap()
-                    .to_string_lossy()
-                    .into_owned(),
-            );
-        }
     }
     Ok(())
 }
