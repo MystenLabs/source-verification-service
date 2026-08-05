@@ -218,8 +218,13 @@ reproducible from the source alone.
 The residual risk is that a consumer follows `git_url` to read source that a
 SHA-1 collision has substituted. The attestation itself is unaffected; only
 discovery is misled. The mitigation is to make checking `source_hash` easy enough
-that nobody skips it — a `verify-source` subcommand or a short script that prints
-the hash for a local checkout, so comparing is one command. (Not yet built.)
+that nobody skips it. The `source-hash` binary in this repository prints the hash
+of a local checkout using the same code the enclave runs, so comparing against an
+attestation is one command:
+
+```
+source-hash path/to/package
+```
 
 ## Design decisions
 

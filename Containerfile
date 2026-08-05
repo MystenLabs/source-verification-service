@@ -62,7 +62,7 @@ ENV OPENSSL_STATIC=true
 ENV TARGET=x86_64-unknown-linux-musl
 ARG ENCLAVE_APP
 ENV RUSTFLAGS="-C target-feature=+crt-static -C relocation-model=static -C target-cpu=x86-64"
-RUN cargo build --locked --no-default-features --features $ENCLAVE_APP --release --target "$TARGET"
+RUN cargo build --locked --bin nautilus-server --no-default-features --features $ENCLAVE_APP --release --target "$TARGET"
 
 WORKDIR /build_cpio
 ENV KBUILD_BUILD_TIMESTAMP=1
