@@ -5,19 +5,19 @@
 version = 4
 
 [pinned.testnet.MoveStdlib]
-source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "367fd808279bed26f7c64fc63160062a2ee29ab7" }
+source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/move-stdlib", rev = "d50b78880fdacb1bbde92e6974ed71a7650c1090" }
 use_environment = "testnet"
 manifest_digest = "C4FE4C91DE74CBF223B2E380AE40F592177D21870DC2D7EB6227D2D694E05363"
 deps = {}
 
 [pinned.testnet.Sui]
-source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "367fd808279bed26f7c64fc63160062a2ee29ab7" }
+source = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "d50b78880fdacb1bbde92e6974ed71a7650c1090" }
 use_environment = "testnet"
 manifest_digest = "7AFB66695545775FBFBB2D3078ADFD084244D5002392E837FDE21D9EA1C6D01C"
 deps = { MoveStdlib = "MoveStdlib" }
 
 [pinned.testnet.attestations]
-source = { git = "https://github.com/MystenLabs/attestations.git", subdir = "packages/attestations", rev = "4729389cd5ef76d376a2733ec06d9b051c80c419" }
+source = { git = "https://github.com/MystenLabs/attestations", subdir = "packages/attestations", rev = "d3de61f0835888f1759283567af05a951f035a62" }
 use_environment = "testnet"
 manifest_digest = "5745706258F61D6CE210904B3E6AE87A73CE9D31A6F93BE4718C442529332A87"
 deps = { std = "MoveStdlib", sui = "Sui" }
@@ -31,5 +31,5 @@ deps = { std = "MoveStdlib", sui = "Sui" }
 [pinned.testnet.source_verification]
 source = { root = true }
 use_environment = "testnet"
-manifest_digest = "7022D50354759EF834B3EF7F3B46A3B46BE631AAB6998C9AAC1CB26CD573BE57"
+manifest_digest = "D93BEEF801CEA5CAEDE7CA38C1313189DA1D2E0DC9A4225B4D85EE9C51382310"
 deps = { attestations = "attestations", enclave = "enclave", std = "MoveStdlib", sui = "Sui" }
