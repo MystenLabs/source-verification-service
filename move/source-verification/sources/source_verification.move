@@ -212,13 +212,13 @@ fun signing_bytes_match_rust() {
         source_hash: b"abc".to_string(),
         git_url: b"https://example.com/repo.git".to_string(),
         subdir: b"pkg".to_string(),
-        git_sha: b"deadbeef".to_string(),
+        git_sha: b"1234567890abcdef1234567890abcdef12345678".to_string(),
         toolchain_version: b"1.71.1".to_string(),
         toolchain_digest: b"xyz".to_string(),
     };
     let msg = enclave::create_intent_message(VERIFY_SCOPE, 1_700_000_000_000, payload);
     let expected =
-        x"000068e5cf8b010000000000000000000000000000000000000000000000000000000000000000002a036162631c68747470733a2f2f6578616d706c652e636f6d2f7265706f2e67697403706b6708646561646265656606312e37312e310378797a";
+        x"000068e5cf8b010000000000000000000000000000000000000000000000000000000000000000002a036162631c68747470733a2f2f6578616d706c652e636f6d2f7265706f2e67697403706b67283132333435363738393061626364656631323334353637383930616263646566313233343536373806312e37312e310378797a";
     assert!(sui::bcs::to_bytes(&msg) == expected);
 }
 
@@ -240,34 +240,53 @@ fun setup(scenario: &mut test_scenario::Scenario, alice: address): (Registry, En
     (registry, config, enclave)
 }
 
+#[test_only]
+/// Attest the fixed test payload with the valid test signature (the one the
+/// enclave app's `signing_bytes` test emits). Aborts if the config/enclave check
+/// or the signature check fails.
+fun attest_fixture(
+    registry: &Registry,
+    enclave: &Enclave<SourceVerifier>,
+    config: &EnclaveConfig<SourceVerifier>,
+    ctx: &mut TxContext,
+): ID {
+    attest_source(
+        object::id(registry),
+        enclave,
+        config,
+        object::id_from_address(@0x2a),
+        b"abc".to_string(),
+        b"https://example.com/repo.git".to_string(),
+        b"pkg".to_string(),
+        b"1234567890abcdef1234567890abcdef12345678".to_string(),
+        b"1.71.1".to_string(),
+        b"xyz".to_string(),
+        1_700_000_000_000,
+        x"2bf813528e1ac24bc5d5da7b7529cc15b706c2a9e1cb6606752049dc7ffabc626454ab5d5586f7af1cf5f20539184fe997aa86f1954ae0158adb301966fdc905",
+        ctx,
+    )
+}
+
 #[test]
 #[expected_failure(abort_code = EStaleEnclave)]
 /// Rotating the PCRs revokes an enclave registered against the old ones, even
-/// though its key still signs correctly -- the signature here is the valid one.
+/// though its key still signs correctly. The *same* valid signature is accepted
+/// before `update_pcrs` and rejected after, so the failure below is the rotation,
+/// not a bad signature.
 fun attest_source_rejects_stale_enclave() {
     let alice = @0xA11CE;
     let mut scenario = test_scenario::begin(alice);
     let (registry, mut config, enclave) = setup(&mut scenario, alice);
 
+    // Accepted while the enclave's config version is current.
+    let _ = attest_fixture(&registry, &enclave, &config, scenario.ctx());
+
     scenario.next_tx(alice);
     let cap: enclave::Cap<SourceVerifier> = scenario.take_from_sender();
     enclave::update_pcrs(&mut config, &cap, x"01", x"01", x"01");
 
-    let _ = attest_source(
-        object::id(&registry),
-        &enclave,
-        &config,
-        object::id_from_address(@0x2a),
-        b"abc".to_string(),
-        b"https://example.com/repo.git".to_string(),
-        b"pkg".to_string(),
-        b"deadbeef".to_string(),
-        b"1.71.1".to_string(),
-        b"xyz".to_string(),
-        1_700_000_000_000,
-        x"d13ea677c4a3e33c9ec5010f0724e55fc19edb8518818653ed88b8b85bf62645d5f2b34d3ff972ae10fb65df2413e9aa39c66e45df6c815b9a43e90716c32a0b",
-        scenario.ctx(),
-    );
+    // The same response, rejected now that the config has rotated out from under it.
+    let _ = attest_fixture(&registry, &enclave, &config, scenario.ctx());
 
     scenario.return_to_sender(cap);
     test_scenario::return_shared(registry);
@@ -285,21 +304,7 @@ fun attest_source_accepts_valid_signature() {
     let alice = @0xA11CE;
     let mut scenario = test_scenario::begin(alice);
     let (registry, config, enclave) = setup(&mut scenario, alice);
-    let _ = attest_source(
-        object::id(&registry),
-        &enclave,
-        &config,
-        object::id_from_address(@0x2a),
-        b"abc".to_string(),
-        b"https://example.com/repo.git".to_string(),
-        b"pkg".to_string(),
-        b"deadbeef".to_string(),
-        b"1.71.1".to_string(),
-        b"xyz".to_string(),
-        1_700_000_000_000,
-        x"d13ea677c4a3e33c9ec5010f0724e55fc19edb8518818653ed88b8b85bf62645d5f2b34d3ff972ae10fb65df2413e9aa39c66e45df6c815b9a43e90716c32a0b",
-        scenario.ctx(),
-    );
+    let _ = attest_fixture(&registry, &enclave, &config, scenario.ctx());
 
     test_scenario::return_shared(registry);
     test_scenario::return_shared(config);
@@ -322,7 +327,7 @@ fun attest_source_rejects_bad_signature() {
         b"abc".to_string(),
         b"https://example.com/repo.git".to_string(),
         b"pkg".to_string(),
-        b"deadbeef".to_string(),
+        b"1234567890abcdef1234567890abcdef12345678".to_string(),
         b"1.71.1".to_string(),
         b"xyz".to_string(),
         1_700_000_000_000,
