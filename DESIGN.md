@@ -238,12 +238,6 @@ would be the one input a consumer could not see. Packages with an unusable
 recorded toolchain are fixed by correcting `Published.toml`, which fixes them for
 everyone permanently.
 
-**`attest_source` takes fields, not a struct.** A programmable transaction can
-supply only primitives and a few special types as pure arguments, so a function
-taking `SourceVerification` by value could not be called at all. Rebuilding the
-struct inside is also what gives the signature check meaning: it verifies against
-exactly what the caller supplied.
-
 **Verifications are serialized.** Each one holds a checkout, a build tree, and a
 ~200 MB compiler in a filesystem that is RAM. Concurrency multiplies the scarcest
 resource, and exhausting it kills the enclave rather than the request — losing the
@@ -338,10 +332,6 @@ can be verified. The allowlist is **GitHub only** to start, so the root package
 dependency fetched from anywhere else cannot be verified until that host is added.
 Widening this is a matter of extending the allowlist and the traffic forwarder,
 not a design change.
-
-**PCR2 does not bind anything.** It has been identical across every image built
-here regardless of contents. PCR0 and PCR1 are what tie an attestation to an
-image; pinning PCR2 costs nothing but proves nothing.
 
 **Availability is unprotected.** Verifications are serialized and take minutes, so
 an unauthenticated endpoint can be monopolized at no cost to the caller. Caching
