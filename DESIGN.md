@@ -333,7 +333,13 @@ dependency fetched from anywhere else cannot be verified until that host is adde
 Widening this is a matter of extending the allowlist and the traffic forwarder,
 not a design change.
 
-**Availability is unprotected.** Verifications are serialized and take minutes, so
-an unauthenticated endpoint can be monopolized at no cost to the caller. Caching
-identical requests and rate limiting at the host are the obvious mitigations;
-neither is implemented.
+**Availability is unprotected — and generating an attestation, not submitting it,
+is the costly half.** Recording a response costs only gas, but *producing* one is
+a minutes-long enclave rebuild, serialized and unmetered. An open, permissionless
+generation endpoint would therefore be a denial-of-service target: a caller pays
+nothing to tie the enclave up while every legitimate request waits. So generation
+is deliberately not exposed permissionlessly yet — the operator runs the enclave
+(for key ecosystem packages, with anyone else running their own), which bounds who
+can trigger the work. Making generation permissionless is a real goal, but it
+needs the controls that close this gap first: caching identical requests, rate
+limiting at the host, or pricing the work. None is implemented.
