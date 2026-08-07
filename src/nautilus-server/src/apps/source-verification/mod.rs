@@ -514,7 +514,7 @@ mod tests {
             source_hash: "abc".to_string(),
             git_url: "https://example.com/repo.git".to_string(),
             subdir: "pkg".to_string(),
-            git_sha: "deadbeef".to_string(),
+            git_sha: "1234567890abcdef1234567890abcdef12345678".to_string(),
             toolchain_version: "1.71.1".to_string(),
             toolchain_digest: "xyz".to_string(),
         };
