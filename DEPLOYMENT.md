@@ -28,15 +28,12 @@ functions.
 | | |
 | --- | --- |
 | `EnclaveConfig<SourceVerifier>` (shared) | `0xe4da114a4a5e35751cc730dd48c1a0588b27ef3cd35e91ab37bd58d91125cb57` |
-| `Enclave<SourceVerifier>` (shared) | `0xd450418a9e185fcec981e29ea34d7ee38eff6d71989cf1f95c0524af8772bbdc` |
-| `Cap<SourceVerifier>` | `0x7985f057e3f6df05704cdbb2ec9d943d3965f650ba6912844d4975765e7d721b` |
+| `enclave::Cap<SourceVerifier>` | `0x7985f057e3f6df05704cdbb2ec9d943d3965f650ba6912844d4975765e7d721b` |
 | `Display<Attestation<SourceVerification>>` (shared) | registered for the current type; find it via the Registry's `DisplayCap` |
 | `attestations::Registry` (shared) | `0x5a8a789c0385d5e891519612a7d3d8ab36f1d9fc03d63cdabf1cefb3d848b568` |
 
 The `Cap` and the two upgrade capabilities are the three that can each
-independently forge an attestation; see [DESIGN.md](DESIGN.md#trust-roots). They
-are held by a single address here because this is a test deployment. A real one
-puts them in a multisig.
+independently forge an attestation; see [DESIGN.md](DESIGN.md#trust-roots).
 
 ## Enclave image
 
@@ -46,8 +43,7 @@ PCR1  92b237a89f9721d37f29d342a24683c04082a88edce9199ed30215cd7479c3035a03c541b1
 PCR2  21b9efbc184807662e966d34f390821309eeac6802309798826296bf3e8bec7c10edb30948c90ba67310f7b964fc500a
 ```
 
-PCR0 and PCR1 are what bind the image. PCR2 has been identical across every build
-regardless of contents, so it is pinned but proves nothing.
+PCR0 and PCR1 are what bind the image.
 
 The PCRs are **not** compiled into the contract — they are deployment data. After
 publishing, the `Cap` holder creates the shared `EnclaveConfig` with them:
@@ -86,34 +82,6 @@ clear. It is not permanent across publishes, though -- a republish mints a new
 `image_url` is absent because it needs a stable public URL. It can be appended
 with `add_display_field`, using the `DisplayCap` above, which
 `register_source_display` parked on the Registry.
-
-## Finding attestations
-
-An `Attestation<T>` is owned by an address derived from the package it is about,
-not by whoever submitted it. So every attestation for a package is found by
-listing that address's objects — no event scanning, and no dependence on who paid
-the gas.
-
-| | |
-| --- | --- |
-| Attestation | `0x52f2113eec38f0e785c18afd154568aefc5a3267e503755daefcdade95acdb37` |
-| Owner (derived) | `0x405cc60ce6fd586d1c7f451b852a258bc20df419039ae709ac5c1fc1f3e6b59c` |
-| Subject | the `attestations` package itself, `0x6e0e1141…` |
-| Source | `github.com/MystenLabs/attestations` @ `4729389c`, `packages/attestations` |
-| Rebuilt with | sui 1.72.2, sha256 `856000be173a9e9bc1fbecac9554fe107d1d2eac963ac29e9369b1af381f3555` |
-
-It renders through the Display as:
-
-> **Verified source**
-> The source at https://github.com/MystenLabs/attestations.git
-> (4729389cd5ef76d376a2733ec06d9b051c80c419), subdirectory packages/attestations,
-> compiles to the bytecode published at 0x6e0e1141…. Rebuilt with sui 1.72.2.
-> Source hash cf6f3499ea70df70437ee84603127165d68106b8f2e1cd7be517294e23276dc4.
-
-An earlier attestation, `0x01093888ddab82931406b5153a57d8ee9d2768c90eff57818e35489e220cd0ec`,
-was recorded against a superseded publish whose payload carried the digests as
-`vector<u8>`. It has the same derived owner, since that address depends only on
-the subject.
 
 ## Cost
 
