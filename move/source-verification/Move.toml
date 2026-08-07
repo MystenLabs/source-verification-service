@@ -4,4 +4,4 @@ edition = "2024"
 
 [dependencies]
 enclave = { local = "../enclave" }
-attestations = { git = "https://github.com/MystenLabs/attestations.git", subdir = "packages/attestations", rev = "4729389cd5ef76d376a2733ec06d9b051c80c419" }
+attestations = { r.mvr = "@mysten/attestations" }
