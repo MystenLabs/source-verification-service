@@ -1,0 +1,19 @@
+{
+  "network": "testnet",
+  "chainId": "4c78adac",
+  "packages": {
+    "enclave": "0x8358708a5f14133d7ca5f1a6c1a48dcdca1ce81c83e448851aec5e6cf03d8def",
+    "sourceVerification": {
+      "originalId": "0xcb8431eec58b1da968ec30841bb026b478fcee3d744e44647d355f70c4b12775",
+      "latestId": "0x270c883b752ff0bc10f81eb71b2bd69116d2e29a262408d0fcbb1947935894bb",
+      "version": 3,
+      "upgradeCap": "0x144cb5a9a01fb7de1bb528cb2c6742136cdf0c7fc0c519fcfdf947eee599efa0"
+    },
+    "attestations": "0x6e0e1141d77448253ab434b008a01259e81c5c31bd1cdac8922a5256da690c09"
+  },
+  "objects": {
+    "enclaveConfig": "0xe4da114a4a5e35751cc730dd48c1a0588b27ef3cd35e91ab37bd58d91125cb57",
+    "cap": "0x7985f057e3f6df05704cdbb2ec9d943d3965f650ba6912844d4975765e7d721b",
+    "attestationsRegistry": "0x5a8a789c0385d5e891519612a7d3d8ab36f1d9fc03d63cdabf1cefb3d848b568"
+  }
+}

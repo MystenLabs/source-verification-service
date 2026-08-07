@@ -6,14 +6,13 @@ git history is the record of what came before.
 
 ## Packages
 
-| | |
-| --- | --- |
-| `enclave` (vendored) | `0x8358708a5f14133d7ca5f1a6c1a48dcdca1ce81c83e448851aec5e6cf03d8def` |
-| `source_verification` | original-id `0xcb8431ee…`, latest version `0x270c883b…` |
-| `attestations` (Mysten's, linked) | `0x6e0e1141d77448253ab434b008a01259e81c5c31bd1cdac8922a5256da690c09` |
+The addresses are in [`addresses.testnet.json`](addresses.testnet.json) (and in each
+package's `Published.toml`, which is what the package system reads). What each is:
 
-Addresses are also in each package's `Published.toml`, which is what the package
-system reads; the table is for humans.
+- **`enclave`** — the vendored `enclave` package.
+- **`sourceVerification`** — this service's contract, as `originalId` / `latestId` /
+  `version` / `upgradeCap`.
+- **`attestations`** — Mysten's `attestations` package, linked.
 
 `source_verification` keeps one lineage: it is *upgraded*, not republished, as the
 service evolves, so its original-id and its recorded attestations are stable. The
@@ -25,12 +24,14 @@ functions.
 
 ## Objects
 
-| | |
-| --- | --- |
-| `EnclaveConfig<SourceVerifier>` (shared) | `0xe4da114a4a5e35751cc730dd48c1a0588b27ef3cd35e91ab37bd58d91125cb57` |
-| `enclave::Cap<SourceVerifier>` | `0x7985f057e3f6df05704cdbb2ec9d943d3965f650ba6912844d4975765e7d721b` |
-| `Display<Attestation<SourceVerification>>` (shared) | registered for the current type; find it via the Registry's `DisplayCap` |
-| `attestations::Registry` (shared) | `0x5a8a789c0385d5e891519612a7d3d8ab36f1d9fc03d63cdabf1cefb3d848b568` |
+Also in [`addresses.testnet.json`](addresses.testnet.json):
+
+- **`enclaveConfig`** — the shared `EnclaveConfig<SourceVerifier>`.
+- **`cap`** — the `enclave::Cap<SourceVerifier>`.
+- **`attestationsRegistry`** — the shared `attestations::Registry`.
+
+The `Display<Attestation<SourceVerification>>` is not listed: it is registered for
+the current type and found through the Registry's `DisplayCap`.
 
 The `Cap` and the two upgrade capabilities are the three that can each
 independently forge an attestation; see [DESIGN.md](DESIGN.md#trust-roots).
