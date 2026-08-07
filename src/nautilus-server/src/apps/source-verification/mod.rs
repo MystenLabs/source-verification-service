@@ -16,6 +16,7 @@ use fastcrypto::encoding::{Encoding, Hex};
 use fastcrypto::hash::{HashFunction, Sha256};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
@@ -194,14 +195,15 @@ fn git_clone_checkout(url: &str, rev: &str, dest: &Path) -> Result<(), EnclaveEr
     let dest = path_str(dest)?;
     // `--` as well as the checks in `check_request`: either alone stops a
     // leading-dash operand being read as an option.
-    run("git", &["clone", "--quiet", "--", url, dest])?;
-    run("git", &["-C", dest, "checkout", "--quiet", rev, "--"])
+    run("git", &["clone", "--quiet", "--", url, dest], &[])?;
+    run("git", &["-C", dest, "checkout", "--quiet", rev, "--"], &[])?;
+    Ok(())
 }
 
 /// Resolve the checked-out commit to its full SHA.
 fn git_rev_parse(dir: &Path) -> Result<String, EnclaveError> {
     Ok(
-        output("git", &["-C", path_str(dir)?, "rev-parse", "HEAD"], &[])?
+        run("git", &["-C", path_str(dir)?, "rev-parse", "HEAD"], &[])?
             .trim()
             .to_string(),
     )
@@ -289,7 +291,7 @@ fn run_verify_source(
 ) -> Result<VerifiedMetadata, EnclaveError> {
     let sui = std::env::var("SUI_BIN").unwrap_or_else(|_| "sui".to_string());
     let config = write_client_config(move_home, build_env)?;
-    let stdout = output(
+    let stdout = run(
         &sui,
         &[
             "client",
@@ -307,60 +309,49 @@ fn run_verify_source(
         .map_err(|e| err(format!("parse verify-source --json output: {e}: {stdout}")))
 }
 
-/// Delete everything in the package directory except the files that determine the
-/// build, leaving `sources/`, `Move.toml`, `Move.lock`, and `Published.toml`.
-///
-/// Done before both hashing and building, so `source_hash` covers *exactly* the
-/// files the rebuild reads: a file outside this set cannot influence the bytecode
-/// and later be changed without changing the hash. It also drops `.git` for a
-/// root-level package (`subdir` empty), which a whole-directory hash would fold
-/// in. `git_sha` is already resolved by this point, so removing `.git` is safe.
-///
-// REVIEW: this is the definition of "the package's source" that source_hash
-// commits to. `move build` compiles `sources/` and resolves dependencies from the
-// manifests; nothing else in the directory affects the bytecode. Confirm this set
-// is complete for the package layouts we care about before relying on it.
+/// Delete everything in the package directory except its
+/// [build inputs](crate::source_hash::build_input_files), so `source_hash` (run
+/// next) covers *exactly* the files the rebuild reads, and the rebuild sees
+/// nothing else. A file outside the set cannot influence the bytecode and later
+/// be changed without changing the hash. This drops `.git` for a root-level
+/// package (`subdir` empty), which a whole-directory hash would fold in, and any
+/// non-`.move` file in `sources/`. `git_sha` is already resolved by this point,
+/// so removing `.git` is safe.
 fn prune_to_build_inputs(dir: &Path) -> Result<(), EnclaveError> {
-    const KEEP: &[&str] = &["sources", "Move.toml", "Move.lock", "Published.toml"];
-    for entry in std::fs::read_dir(dir).map_err(|e| err(format!("readdir {dir:?}: {e}")))? {
-        let path = entry.map_err(|e| err(format!("direntry: {e}")))?.path();
-        let keep = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .is_some_and(|n| KEEP.contains(&n));
-        if keep {
-            continue;
-        }
-        let removed = if path.is_dir() {
-            std::fs::remove_dir_all(&path)
-        } else {
-            std::fs::remove_file(&path)
-        };
-        removed.map_err(|e| err(format!("prune {path:?}: {e}")))?;
-    }
+    let keep: HashSet<PathBuf> = crate::source_hash::build_input_files(dir)
+        .map_err(|e| err(format!("build inputs of {dir:?}: {e}")))?
+        .into_iter()
+        .map(|rel| dir.join(rel))
+        .collect();
+    prune_except(dir, &keep)?;
     Ok(())
 }
 
-/// Run a command, returning an error carrying its output on non-zero exit.
-fn run(bin: &str, args: &[&str]) -> Result<(), EnclaveError> {
-    let out = Command::new(bin)
-        .args(args)
-        .output()
-        .map_err(|e| err(format!("failed to spawn {bin}: {e}")))?;
-    if out.status.success() {
-        Ok(())
-    } else {
-        Err(err(format!(
-            "{bin} {} failed: {}",
-            args.join(" "),
-            described(&out)
-        )))
+/// Recursively delete files under `dir` not in `keep`, then remove any directory
+/// left empty. Returns whether `dir` itself is empty afterward.
+fn prune_except(dir: &Path, keep: &HashSet<PathBuf>) -> Result<bool, EnclaveError> {
+    let mut remaining = 0;
+    for entry in std::fs::read_dir(dir).map_err(|e| err(format!("readdir {dir:?}: {e}")))? {
+        let path = entry.map_err(|e| err(format!("direntry: {e}")))?.path();
+        if path.is_dir() {
+            if prune_except(&path, keep)? {
+                std::fs::remove_dir(&path).map_err(|e| err(format!("prune {path:?}: {e}")))?;
+            } else {
+                remaining += 1;
+            }
+        } else if keep.contains(&path) {
+            remaining += 1;
+        } else {
+            std::fs::remove_file(&path).map_err(|e| err(format!("prune {path:?}: {e}")))?;
+        }
     }
+    Ok(remaining == 0)
 }
 
-/// Run a command with `envs` set, capturing stdout and erroring with its output
-/// on non-zero exit.
-fn output(bin: &str, args: &[&str], envs: &[(&str, &str)]) -> Result<String, EnclaveError> {
+/// Run `bin args` with `envs` set, returning captured stdout on success and an
+/// error carrying both output streams on non-zero exit. Callers that do not need
+/// the output ignore the returned string.
+fn run(bin: &str, args: &[&str], envs: &[(&str, &str)]) -> Result<String, EnclaveError> {
     let out = Command::new(bin)
         .args(args)
         .envs(envs.iter().copied())
@@ -369,7 +360,11 @@ fn output(bin: &str, args: &[&str], envs: &[(&str, &str)]) -> Result<String, Enc
     if out.status.success() {
         Ok(String::from_utf8_lossy(&out.stdout).into_owned())
     } else {
-        Err(err(format!("{bin} failed: {}", described(&out))))
+        Err(err(format!(
+            "{bin} {} failed: {}",
+            args.join(" "),
+            described(&out)
+        )))
     }
 }
 
@@ -541,5 +536,39 @@ mod tests {
         let sig = kp.sign(&bytes);
         println!("PK_HEX={}", Hex::encode(kp.public().as_bytes()));
         println!("SIG_HEX={}", Hex::encode(sig.as_ref()));
+    }
+
+    #[test]
+    fn prune_keeps_only_build_inputs() {
+        let dir = std::env::temp_dir().join("svc-prune-keeps-only");
+        let _ = std::fs::remove_dir_all(&dir);
+        let w = |rel: &str| {
+            let p = dir.join(rel);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, "x\n").unwrap();
+        };
+        w("Move.toml");
+        w("Move.lock");
+        w("sources/m.move");
+        w("sources/sub/n.move"); // recursive .move kept
+        w("sources/notes.txt"); // non-.move in sources pruned
+        w("README.md");
+        w(".git/config");
+        w("build/out.mv");
+
+        prune_to_build_inputs(&dir).unwrap();
+
+        let has = |rel: &str| dir.join(rel).exists();
+        assert!(has("Move.toml") && has("Move.lock"), "manifests kept");
+        assert!(
+            has("sources/m.move") && has("sources/sub/n.move"),
+            "recursive .move kept"
+        );
+        assert!(!has("sources/notes.txt"), "non-.move in sources pruned");
+        assert!(
+            !has("README.md") && !has(".git") && !has("build"),
+            "extraneous pruned"
+        );
+        std::fs::remove_dir_all(&dir).ok();
     }
 }
