@@ -23,27 +23,50 @@ const MANIFESTS: &[&str] = &["Move.toml", "Move.lock", "Published.toml"];
 /// non-`.move` file in `sources/` is not read by the compiler, so it is not an
 /// input and is excluded.
 ///
-/// Errors if `package_dir` has no `Move.toml`: a directory without one is not a
-/// package, and treating it as one would hash nothing rather than report the
-/// mistake.
+/// Errors if `package_dir` has no `Move.toml` (a directory without one is not a
+/// package), or if a build input is a symlink: a symlink could point outside the
+/// package, so the hash and the rebuild would read content the source tree does
+/// not itself contain, and the result would not be reproducible from the tree.
 pub fn build_input_files(package_dir: &Path) -> io::Result<Vec<String>> {
-    if !package_dir.join("Move.toml").is_file() {
+    if !is_regular_file(&package_dir.join("Move.toml"))? {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
             format!("{package_dir:?} is not a Move package: no Move.toml"),
         ));
     }
-    let mut files: Vec<String> = MANIFESTS
-        .iter()
-        .filter(|n| package_dir.join(n).is_file())
-        .map(|n| (*n).to_string())
-        .collect();
+    let mut files = Vec::new();
+    for name in MANIFESTS {
+        if is_regular_file(&package_dir.join(name))? {
+            files.push((*name).to_string());
+        }
+    }
     let sources = package_dir.join("sources");
-    if sources.is_dir() {
-        collect_move_files(package_dir, &sources, &mut files)?;
+    match std::fs::symlink_metadata(&sources) {
+        Ok(m) if m.file_type().is_symlink() => return Err(symlink_rejected(&sources)),
+        Ok(m) if m.is_dir() => collect_move_files(package_dir, &sources, &mut files)?,
+        _ => {}
     }
     files.sort();
     Ok(files)
+}
+
+/// Whether `path` is a regular file, treating a symlink as an error rather than
+/// following it (see [`build_input_files`]) and a missing path as simply `false`.
+fn is_regular_file(path: &Path) -> io::Result<bool> {
+    match std::fs::symlink_metadata(path) {
+        Ok(m) if m.file_type().is_symlink() => Err(symlink_rejected(path)),
+        Ok(m) => Ok(m.is_file()),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(e) => Err(e),
+    }
+}
+
+/// The error returned when a build input is a symlink.
+fn symlink_rejected(path: &Path) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidInput,
+        format!("{path:?} is a symlink; build inputs must be regular files"),
+    )
 }
 
 /// Lowercase hex of a blake2b256 over a lexicographically-sorted manifest of the
@@ -64,10 +87,15 @@ pub fn source_hash(package_dir: &Path) -> io::Result<String> {
 }
 
 /// Collect `.move` files under `dir` as paths relative to `root`, recursively.
+/// Errors on a symlink rather than following it (see [`build_input_files`]).
 fn collect_move_files(root: &Path, dir: &Path, out: &mut Vec<String>) -> io::Result<()> {
     for entry in std::fs::read_dir(dir)? {
-        let path = entry?.path();
-        if path.is_dir() {
+        let entry = entry?;
+        let file_type = entry.file_type()?; // does not follow symlinks
+        let path = entry.path();
+        if file_type.is_symlink() {
+            return Err(symlink_rejected(&path));
+        } else if file_type.is_dir() {
             collect_move_files(root, &path, out)?;
         } else if path.extension().is_some_and(|e| e == "move") {
             out.push(
@@ -172,5 +200,16 @@ mod tests {
         let a = minimal("loc-a");
         let b = minimal("loc-b");
         assert_eq!(source_hash(&a).unwrap(), source_hash(&b).unwrap());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_a_symlink_in_sources() {
+        let dir = minimal("symlink");
+        std::os::unix::fs::symlink("/etc/hostname", dir.join("sources/link.move")).unwrap();
+        assert!(
+            source_hash(&dir).is_err(),
+            "a symlink in sources/ must be rejected, not followed"
+        );
     }
 }
