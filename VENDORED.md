@@ -21,6 +21,10 @@ import can be checked mechanically rather than read. A handful are modified for
 this service; those are listed under [Local modifications](#local-modifications)
 and excluded here.
 
+Byte-identity is provenance, not endorsement: upstream Nautilus is itself
+unaudited and provided as-is under its licence, so matching it establishes *what*
+was vendored, not that the vendored code is correct.
+
 ```shell
 git clone https://github.com/MystenLabs/nautilus /tmp/nautilus
 git -C /tmp/nautilus checkout 048bae1dc2715bb201b424e3febd0056cba8dfe8
@@ -83,10 +87,6 @@ upstream commit, reviewable on its own:
 - **`Containerfile`, `Makefile`, `src/nautilus-server/run.sh`** — the enclave image
   build, changed to carry the verifier and its runtime, pin every input, and
   configure verification's egress and scratch space.
-
-The on-chain contract PR, which stacks on this one, additionally modifies
-`move/enclave/sources/enclave.move` (adding two accessors); it is documented
-there.
 
 ## Changes made upstream
 
