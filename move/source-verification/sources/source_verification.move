@@ -1,4 +1,4 @@
-/// Source-verification skill — standalone Nautilus + attestations.
+/// Source verification — standalone Nautilus + attestations.
 ///
 /// A Nitro enclave running the verify-source workload signs a
 /// `SourceVerification` over a Move package it checked against its on-chain
