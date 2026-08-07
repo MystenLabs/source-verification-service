@@ -94,6 +94,13 @@ fun init(ctx: &mut TxContext) {
 /// makes it a cleanup task rather than a control. With the check, `update_pcrs`
 /// takes effect immediately.
 ///
+/// Taking `config`/`enclave` as arguments is safe: an
+/// `EnclaveConfig<SourceVerifier>` can only be made by `create_enclave_config`,
+/// which needs a `Cap<SourceVerifier>`, which needs a `SourceVerifier` witness this
+/// module mints only in `init`. A caller cannot forge a config with PCRs of their
+/// choosing — a `Cap` holder could, but that is one of the trust roots named in
+/// DESIGN.
+///
 /// The payload arrives as fields rather than as a `SourceVerification` because a
 /// programmable transaction can supply only primitives, vectors and a handful of
 /// special types as pure arguments; an arbitrary Move struct is not among them,
