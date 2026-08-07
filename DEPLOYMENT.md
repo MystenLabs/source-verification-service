@@ -106,6 +106,12 @@ run rather than from those constants.
 make verifier SUI_SRC=/path/to/sui   # checks out VERIFIER_REV, asserts VERIFIER_SHA256
 make ENCLAVE_APP=source-verification
 cat out/nitro.pcrs                    # must match the PCRs above
+
+# ...and to compare a built image against what is registered on-chain, read the
+# PCRs back off the EnclaveConfig (its id is `enclaveConfig` in addresses.testnet.json):
+sui client object "$ENCLAVE_CONFIG" --json \
+    | jq -r '.content.pcrs | .pos0, .pos1, .pos2' \
+    | while read -r pcr; do printf '%s\n' "$pcr" | base64 -d | xxd -p -c48; done
 ```
 
 The verifier is built from a pinned revision and checked against a pinned digest
