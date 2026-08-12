@@ -71,7 +71,9 @@ version that cleanly verifies.
 Currently, mvr is not operating a service to generate source verification
 attestations, so if you want to produce an attestation for your package, you
 will need to build and run the source verification on an AWS Nitro enclave
-yourself. See TODO for detailed instructions.
+yourself. See [the enclave operator guide][running] for detailed instructions.
+
+[running]: https://github.com/MystenLabs/source-verification-service/blob/main/RUNNING.md
 
 ## More information
 
