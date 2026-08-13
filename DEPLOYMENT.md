@@ -94,7 +94,7 @@ run rather than from those constants.
 ## Reproducing
 
 ```shell
-make verifier SUI_SRC=/path/to/sui   # checks out VERIFIER_REV, asserts VERIFIER_SHA256
+make verifier                        # downloads the pinned sui release, asserts VERIFIER_SHA256
 make ENCLAVE_APP=source-verification
 cat out/nitro.pcrs                    # must match the recorded PCRs
 
@@ -105,7 +105,7 @@ sui client object "$ENCLAVE_CONFIG" --json \
     | while read -r pcr; do printf '%s\n' "$pcr" | base64 -d | xxd -p -c48; done
 ```
 
-The verifier is built from a pinned revision and checked against a pinned digest
-because `cargo build --release` is not guaranteed byte reproducible. Once
-`verify-source` appears in a sui release, this step becomes a download of that
-release instead — see [DESIGN.md](DESIGN.md#the-verifier-is-the-same-kind-of-artifact).
+The verifier is the pinned `sui` release, checked against a pinned digest of the
+extracted binary — a download rather than a build, so reproducing the PCRs needs
+only that release and the digest — see
+[DESIGN.md](DESIGN.md#the-verifier-is-the-same-kind-of-artifact).
