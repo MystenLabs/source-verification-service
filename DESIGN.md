@@ -277,42 +277,28 @@ package and not attested — `verify-source` dumps the published bytecode, and t
 enclave hashes only `sources/` and the manifests — so a macro that changes only
 test behavior is neither covered nor needs to be.)
 
-**Reproducibility can be affected, and is the real question.** The attestation is
-only a [reverifiable cache](#why-it-is-worth-anything) if a later re-run reaches
-the same answer. With an unpinned dependency it might not: the same source could
-verify today and fail next month, when a branch or an MVR name resolves to a newer
-version whose linkage no longer matches the on-chain package. The attestation was
-true when made, but stops being reproducible — and a consumer taking a dependency
-on the "verified" package is the party who cares.
+**Reproducibility can be affected, but does not change the decision.** An unpinned
+dependency may re-resolve to a newer version later, so the same source could verify
+today and fail a re-run next month. The attestation was true when made; it may
+simply stop being reproducible.
 
-Detecting the unpinned case is where it gets complicated, because the legacy and
-modern package systems record dependencies differently and no single check covers
-both:
+The service **does not reject** an unpinned dependency, for three reasons. Soundness
+is unaffected (above): the worst an unpinned dependency can do is make a *later*
+re-verification fail, never make a wrong attestation pass. Because the on-chain
+bytecode is immutable, that re-verification is conservative — a dependency that
+drifted into changing the result makes the re-run fail visibly, not certify the
+wrong thing silently. And rejecting is expensive: an audit of mainnet packages
+recording source found a large fraction blocked by nothing but an unpinned
+revision, many of which rebuild to the on-chain bytecode exactly once the revision
+is resolved to the commit it currently points at — including widely-used packages
+(Cetus's CLMM, Kiosk, SuiNS subnames). Refusing them trades away much of the real
+ecosystem to defend a property the bytecode comparison already makes fail-safe.
 
-- **A moving lockfile revision.** `verify-source`'s `moving_revisions` flags a
-  dependency whose *lockfile* `rev` is not a commit hash — a branch or a tag. This
-  catches legacy packages and any lockfile that names a moving ref, and it reads
-  only the lockfile, so it is a cheap up-front check.
-- **A build that re-resolves past a pinned lock.** A modern package can pin commit
-  hashes in its lockfile yet declare a dependency by a moving name (an MVR name,
-  e.g. `@mysten/attestations`). If the build re-resolved that name and rewrote the
-  lock rather than honoring the pinned hash, `moving_revisions` sees only commit
-  hashes and passes, but the build used something else. Comparing the lockfile
-  before and after the build would catch this — *but only if the build rewrites the
-  lock.*
-- **The gap between them.** A legacy package does not record pinned deps in its
-  lockfile at all, so a before/after comparison sees no change and catches nothing
-  there — that case needs `moving_revisions`. A modern re-resolution passes
-  `moving_revisions` — that case needs the before/after comparison. The two are
-  complementary, and whether even both together are sufficient depends on how each
-  toolchain actually resolves dependencies.
-
-This is **unresolved and under discussion**, recorded here to be worked out rather
-than because it is settled. Open questions: whether a modern build can in fact
-re-resolve an MVR name past a commit-pinned lock; whether the service should
-*reject* an unreproducible package or merely record that it is not reproducible;
-and whether reproducibility should be enforced in `verify-source` — so every
-consumer of the tool gets it — or only in this service.
+`verify-source` already reflects this: an unpinned revision is not a gate, only an
+explanation offered when a rebuild fails to compile or match. What remains open is
+narrow — whether its *success* output should also record that a dependency was
+unpinned, so a consumer of a "verified" package can see it rests on a moving
+target.
 
 ## Known gaps
 
