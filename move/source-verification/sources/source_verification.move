@@ -33,7 +33,7 @@ const VERIFY_SCOPE: u8 = 0;
 /// Marker `T` for this skill's `EnclaveConfig<T>` / `Enclave<T>`. A plain `drop`
 /// witness (not a one-time witness): only this module can name it, so only this
 /// module can create the enclave config/cap and verify signatures under it.
-public struct SourceVerifier has drop {}
+public struct SourceVerifier() has drop;
 
 /// The attestation payload: package `pkg_id` was built from the source at
 /// `git_url`/`subdir` (resolved commit `git_sha`), whose contents hash to
@@ -77,7 +77,7 @@ public struct SourceVerification has copy, store, drop {
 /// then permissionlessly `register_enclave` their own `Enclave<SourceVerifier>`
 /// against that config.
 fun init(ctx: &mut TxContext) {
-    transfer::public_transfer(enclave::new_cap(SourceVerifier {}, ctx), ctx.sender());
+    transfer::public_transfer(enclave::new_cap(SourceVerifier(), ctx), ctx.sender());
 }
 
 /// Verify an enclave-signed `SourceVerification` and record it as an
@@ -169,31 +169,32 @@ entry fun register_source_display(
     display_registry: &mut DisplayRegistry,
     ctx: &mut TxContext,
 ) {
-    let mut fields = vector[
+    // `name`/`description`/`link`, then each payload field rendered as itself so a
+    // frontend can read the metadata structured rather than parsing the description.
+    let fields = vector[
         b"name".to_string(),
         b"description".to_string(),
         b"link".to_string(),
+        b"git_url".to_string(),
+        b"git_sha".to_string(),
+        b"subdir".to_string(),
+        b"pkg_id".to_string(),
+        b"toolchain_version".to_string(),
+        b"toolchain_digest".to_string(),
+        b"source_hash".to_string(),
     ];
-    let mut values = vector[
+    let values = vector[
         b"Verified source".to_string(),
         b"The source at {data.git_url} ({data.git_sha}), subdirectory {data.subdir}, compiles to the bytecode published at {data.pkg_id}. Rebuilt with sui {data.toolchain_version}. Source hash {data.source_hash}.".to_string(),
         b"https://github.com/MystenLabs/source-verification-service".to_string(),
+        b"{data.git_url}".to_string(),
+        b"{data.git_sha}".to_string(),
+        b"{data.subdir}".to_string(),
+        b"{data.pkg_id}".to_string(),
+        b"{data.toolchain_version}".to_string(),
+        b"{data.toolchain_digest}".to_string(),
+        b"{data.source_hash}".to_string(),
     ];
-    // Each payload field, rendered as itself.
-    fields.push_back(b"git_url".to_string());
-    values.push_back(b"{data.git_url}".to_string());
-    fields.push_back(b"git_sha".to_string());
-    values.push_back(b"{data.git_sha}".to_string());
-    fields.push_back(b"subdir".to_string());
-    values.push_back(b"{data.subdir}".to_string());
-    fields.push_back(b"pkg_id".to_string());
-    values.push_back(b"{data.pkg_id}".to_string());
-    fields.push_back(b"toolchain_version".to_string());
-    values.push_back(b"{data.toolchain_version}".to_string());
-    fields.push_back(b"toolchain_digest".to_string());
-    values.push_back(b"{data.toolchain_digest}".to_string());
-    fields.push_back(b"source_hash".to_string());
-    values.push_back(b"{data.source_hash}".to_string());
     registry.register_display(
         display_registry,
         internal::permit<SourceVerification>(),
@@ -203,31 +204,12 @@ entry fun register_source_display(
     );
 }
 
-#[test]
-/// Pins the `SourceVerification` signing-byte layout against the enclave
-/// server's Rust `signing_bytes` test — the enclave↔chain contract.
-fun signing_bytes_match_rust() {
-    let payload = SourceVerification {
-        pkg_id: object::id_from_address(@0x2a),
-        source_hash: b"abc".to_string(),
-        git_url: b"https://example.com/repo.git".to_string(),
-        subdir: b"pkg".to_string(),
-        git_sha: b"1234567890abcdef1234567890abcdef12345678".to_string(),
-        toolchain_version: b"1.71.1".to_string(),
-        toolchain_digest: b"xyz".to_string(),
-    };
-    let msg = enclave::create_intent_message(VERIFY_SCOPE, 1_700_000_000_000, payload);
-    let expected =
-        x"000068e5cf8b010000000000000000000000000000000000000000000000000000000000000000002a036162631c68747470733a2f2f6578616d706c652e636f6d2f7265706f2e67697403706b67283132333435363738393061626364656631323334353637383930616263646566313233343536373806312e37312e310378797a";
-    assert!(sui::bcs::to_bytes(&msg) == expected);
-}
-
 #[test_only]
 /// A registry, a config created through the real path, and an enclave holding the
 /// fixed test key. Returns them for the caller to consume.
 fun setup(scenario: &mut test_scenario::Scenario, alice: address): (Registry, EnclaveConfig<SourceVerifier>, Enclave<SourceVerifier>) {
     attestations::attestations::init_for_testing(scenario.ctx());
-    let cap = enclave::new_cap(SourceVerifier {}, scenario.ctx());
+    let cap = enclave::new_cap(SourceVerifier(), scenario.ctx());
     enclave::create_enclave_config(&cap, b"test".to_string(), x"00", x"00", x"00", scenario.ctx());
     let enclave = enclave::new_enclave_for_testing<SourceVerifier>(
         x"d04a166e8dcd71127be0012f3e882c9b8c355af7d43dd98f8200b69eb17e312f",
@@ -265,6 +247,25 @@ fun attest_fixture(
         x"2bf813528e1ac24bc5d5da7b7529cc15b706c2a9e1cb6606752049dc7ffabc626454ab5d5586f7af1cf5f20539184fe997aa86f1954ae0158adb301966fdc905",
         ctx,
     )
+}
+
+#[test]
+/// Pins the `SourceVerification` signing-byte layout against the enclave
+/// server's Rust `signing_bytes` test — the enclave↔chain contract.
+fun signing_bytes_match_rust() {
+    let payload = SourceVerification {
+        pkg_id: object::id_from_address(@0x2a),
+        source_hash: b"abc".to_string(),
+        git_url: b"https://example.com/repo.git".to_string(),
+        subdir: b"pkg".to_string(),
+        git_sha: b"1234567890abcdef1234567890abcdef12345678".to_string(),
+        toolchain_version: b"1.71.1".to_string(),
+        toolchain_digest: b"xyz".to_string(),
+    };
+    let msg = enclave::create_intent_message(VERIFY_SCOPE, 1_700_000_000_000, payload);
+    let expected =
+        x"000068e5cf8b010000000000000000000000000000000000000000000000000000000000000000002a036162631c68747470733a2f2f6578616d706c652e636f6d2f7265706f2e67697403706b67283132333435363738393061626364656631323334353637383930616263646566313233343536373806312e37312e310378797a";
+    assert!(sui::bcs::to_bytes(&msg) == expected);
 }
 
 #[test]
