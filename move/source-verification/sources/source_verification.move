@@ -159,41 +159,25 @@ public fun attest_source(
 /// `git_url` would make it vary per attestation and point at hosts this service
 /// does not control.
 ///
-/// Beyond `name`/`description`/`link`, each payload field is also its own Display
-/// field (`git_url`, `git_sha`, …), so a frontend can read the metadata structured
-/// rather than parsing the description. The schema is written out here — in the
-/// source — deliberately, rather than passed in at call time, because it *is* the
-/// contract's public shape and belongs where it can be reviewed.
+/// The schema is written out here — in the source — deliberately, rather than
+/// passed in at call time, because it *is* the contract's public shape and
+/// belongs where it can be reviewed. The payload fields are not repeated as
+/// Display fields: a consumer that wants them structured can read them from the
+/// attestation object itself rather than re-parsing the description.
 entry fun register_source_display(
     registry: &Registry,
     display_registry: &mut DisplayRegistry,
     ctx: &mut TxContext,
 ) {
-    // `name`/`description`/`link`, then each payload field rendered as itself so a
-    // frontend can read the metadata structured rather than parsing the description.
     let fields = vector[
         b"name".to_string(),
         b"description".to_string(),
         b"link".to_string(),
-        b"git_url".to_string(),
-        b"git_sha".to_string(),
-        b"subdir".to_string(),
-        b"pkg_id".to_string(),
-        b"toolchain_version".to_string(),
-        b"toolchain_digest".to_string(),
-        b"source_hash".to_string(),
     ];
     let values = vector[
         b"Verified source".to_string(),
         b"The source at {data.git_url} ({data.git_sha}), subdirectory {data.subdir}, compiles to the bytecode published at {data.pkg_id}. Rebuilt with sui {data.toolchain_version}. Source hash {data.source_hash}.".to_string(),
         b"https://github.com/MystenLabs/source-verification-service".to_string(),
-        b"{data.git_url}".to_string(),
-        b"{data.git_sha}".to_string(),
-        b"{data.subdir}".to_string(),
-        b"{data.pkg_id}".to_string(),
-        b"{data.toolchain_version}".to_string(),
-        b"{data.toolchain_digest}".to_string(),
-        b"{data.source_hash}".to_string(),
     ];
     registry.register_display(
         display_registry,
