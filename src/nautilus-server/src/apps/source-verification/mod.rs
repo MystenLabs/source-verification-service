@@ -181,10 +181,16 @@ impl Drop for Workdir {
     }
 }
 
-/// Parse a (optionally `0x`-prefixed) 32-byte hex package id.
+/// Parse a Sui object id: an optionally `0x`-prefixed hex string of at most 32
+/// bytes. Sui's short-address form strips leading zero bytes and can leave an odd
+/// number of digits, so the digits are zero-padded to the canonical 64-character
+/// width before decoding (`Hex::decode` rejects odd-length input).
 fn parse_pkg_id(s: &str) -> Result<[u8; 32], EnclaveError> {
-    let bytes = Hex::decode(s.strip_prefix("0x").unwrap_or(s))
-        .map_err(|e| err(format!("bad id {s}: {e}")))?;
+    let hex = s.strip_prefix("0x").unwrap_or(s);
+    if hex.len() > 64 {
+        return Err(err(format!("id {s} is longer than 32 bytes")));
+    }
+    let bytes = Hex::decode(&format!("{hex:0>64}")).map_err(|e| err(format!("bad id {s}: {e}")))?;
     bytes
         .try_into()
         .map_err(|_| err(format!("id {s} is not 32 bytes")))
@@ -576,6 +582,20 @@ mod tests {
             "extraneous pruned"
         );
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Short/odd-length ids (Sui strips leading zero bytes) parse to the same
+    /// left-zero-padded 32 bytes as their canonical form, and over-long ids fail.
+    #[test]
+    fn parse_pkg_id_handles_short_and_canonical() {
+        let mut two = [0u8; 32];
+        two[31] = 0x02;
+        assert_eq!(parse_pkg_id("0x2").expect("odd length"), two); // short, odd
+        assert_eq!(parse_pkg_id("0x02").expect("even"), two);
+        let canonical = format!("0x{:064x}", 2);
+        assert_eq!(parse_pkg_id(&canonical).expect("canonical"), two);
+        assert!(parse_pkg_id(&format!("0x{}", "f".repeat(65))).is_err()); // > 32 bytes
+        assert!(parse_pkg_id("0xzz").is_err()); // not hex
     }
 
     /// A directory symlink in the package is unlinked, not followed: pruning must
