@@ -328,18 +328,24 @@ fn prune_to_build_inputs(dir: &Path) -> Result<(), EnclaveError> {
 }
 
 /// Recursively delete files under `dir` not in `keep`, then remove any directory
-/// left empty. Returns whether `dir` itself is empty afterward.
+/// left empty. Returns whether `dir` itself is empty afterward. A symlink is
+/// unlinked without following it: no build input is a symlink, so following one
+/// into a directory would delete the target's contents outside `dir`.
 fn prune_except(dir: &Path, keep: &HashSet<PathBuf>) -> Result<bool, EnclaveError> {
     let mut remaining = 0;
     for entry in std::fs::read_dir(dir).map_err(|e| err(format!("readdir {dir:?}: {e}")))? {
-        let path = entry.map_err(|e| err(format!("direntry: {e}")))?.path();
-        if path.is_dir() {
+        let entry = entry.map_err(|e| err(format!("direntry: {e}")))?;
+        let path = entry.path();
+        let file_type = entry
+            .file_type()
+            .map_err(|e| err(format!("file type {path:?}: {e}")))?;
+        if file_type.is_dir() {
             if prune_except(&path, keep)? {
                 std::fs::remove_dir(&path).map_err(|e| err(format!("prune {path:?}: {e}")))?;
             } else {
                 remaining += 1;
             }
-        } else if keep.contains(&path) {
+        } else if !file_type.is_symlink() && keep.contains(&path) {
             remaining += 1;
         } else {
             std::fs::remove_file(&path).map_err(|e| err(format!("prune {path:?}: {e}")))?;
@@ -570,5 +576,31 @@ mod tests {
             "extraneous pruned"
         );
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A directory symlink in the package is unlinked, not followed: pruning must
+    /// not descend into its target and delete files outside the package.
+    #[cfg(unix)]
+    #[test]
+    fn prune_does_not_follow_directory_symlink() {
+        let base = std::env::temp_dir().join("svc-prune-symlink");
+        let _ = std::fs::remove_dir_all(&base);
+        let pkg = base.join("pkg");
+        let outside = base.join("outside");
+        std::fs::create_dir_all(&pkg).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        std::fs::write(pkg.join("Move.toml"), "x\n").unwrap();
+        std::fs::write(outside.join("victim"), "keep me\n").unwrap();
+        // A directory symlink at the package root, pointing outside the package.
+        std::os::unix::fs::symlink(&outside, pkg.join("evil")).unwrap();
+
+        prune_to_build_inputs(&pkg).unwrap();
+
+        assert!(
+            outside.join("victim").exists(),
+            "prune must not delete the symlink target's contents"
+        );
+        assert!(!pkg.join("evil").exists(), "the symlink itself is unlinked");
+        std::fs::remove_dir_all(&base).ok();
     }
 }
