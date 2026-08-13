@@ -29,19 +29,17 @@ was vendored, not that the vendored code is correct.
 git clone https://github.com/MystenLabs/nautilus /tmp/nautilus
 git -C /tmp/nautilus checkout 048bae1dc2715bb201b424e3febd0056cba8dfe8
 
-for f in LICENSE rust-toolchain.toml \
-         src/nautilus-server/src/common.rs \
+for f in LICENSE \
          src/nautilus-server/traffic_forwarder.py \
-         move/enclave/Move.toml \
          configure_enclave.sh expose_enclave.sh register_enclave.sh reset_enclave.sh; do
     diff -q "/tmp/nautilus/$f" "$f" || echo "DIFFERS: $f"
 done
 ```
 
-Modified files (`Containerfile`, `Makefile`, `run.sh`, the two `Cargo` files,
-`lib.rs`, `main.rs`, `enclave.move`) are best reviewed as diffs against the same
-upstream commit — `git diff` against `/tmp/nautilus/<f>` shows exactly what this
-service changed.
+Modified files (`common.rs`, `rust-toolchain.toml`, `Containerfile`, `Makefile`,
+`run.sh`, the two `Cargo` files, `lib.rs`, `main.rs`, `move/enclave/Move.toml`,
+`enclave.move`) are best reviewed as diffs against the same upstream commit —
+`git diff` against `/tmp/nautilus/<f>` shows exactly what this service changed.
 
 ## What was taken
 
@@ -84,9 +82,26 @@ upstream commit, reviewable on its own:
 - **`src/nautilus-server/Cargo.toml`, `Cargo.lock`** — drops the example-only
   features and their optional dependencies (`regex`, `sui-crypto`,
   `sui-sdk-types`, `seal-sdk`), and defaults the `source-verification` feature.
+  Also bumps `tokio` and switches `aws-nitro-enclaves-nsm-api` from a git pin to
+  its crates.io release; those dependency changes are offered upstream as
+  [nautilus#38](https://github.com/MystenLabs/nautilus/pull/38).
 - **`Containerfile`, `Makefile`, `src/nautilus-server/run.sh`** — the enclave image
   build, changed to carry the verifier and its runtime, pin every input, and
   configure verification's egress and scratch space.
+- **`src/nautilus-server/src/common.rs`** — tidied while addressing review:
+  grouped imports, ordered type definitions before impls before free functions,
+  renamed `GetAttestationResponse` to `AttestationResponse`, lifted the
+  health-check timeout to a constant, dropped a needless payload clone, and split
+  the deeply-nested `health_check` into helpers. Purely a cleanup; offered
+  upstream as [nautilus#38](https://github.com/MystenLabs/nautilus/pull/38).
+- **`rust-toolchain.toml`** — bumped from 1.88 to 1.96.1. This governs local
+  builds only — the enclave image builds with the stagex-pinned Rust — so it does
+  not affect the PCRs. Offered upstream as
+  [nautilus#38](https://github.com/MystenLabs/nautilus/pull/38).
+- **`move/enclave/Move.toml`** — modernized from the old-style template manifest
+  (edition `2024.beta`, an `[addresses] enclave = "0x0"` block) to new-style
+  (edition `2024`, the address bound by name). Offered upstream as
+  [nautilus#38](https://github.com/MystenLabs/nautilus/pull/38).
 
 ## Changes made upstream
 
