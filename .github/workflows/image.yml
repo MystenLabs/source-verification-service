@@ -1,0 +1,64 @@
+name: Enclave image
+
+# The reproducible build is heavy (it pulls the stagex toolchain images and
+# compiles the enclave server), so it only runs when something that feeds the
+# PCRs changes, plus on demand. It builds the same way a verifier would --
+# `docker build`, no Nitro hardware -- so a standard runner is enough.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'Containerfile'
+      - 'Makefile'
+      - 'src/**'
+      - 'rust-toolchain.toml'
+      - 'addresses.testnet.json'
+      - '.github/workflows/image.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reproducible-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The toolchain images plus the built EIF need more than the default free
+      # space, so drop the preinstalled SDKs the build never touches.
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo docker image prune --all --force
+          df -h /
+
+      - name: Build the verifier and the EIF
+        run: |
+          make verifier
+          make ENCLAVE_APP=source-verification
+
+      - name: Show the measurements
+        run: cat out/nitro.pcrs
+
+      # The PCRs are only meaningful if the committed image reproduces bit for
+      # bit. Assert the freshly built measurements match the recorded ones.
+      - name: Assert the PCRs match addresses.testnet.json
+        run: |
+          set -euo pipefail
+          fail=0
+          for n in 0 1 2; do
+            built=$(awk -v k="PCR$n" '$2 == k { print $1 }' out/nitro.pcrs)
+            recorded=$(jq -r ".pcrs.pcr$n" addresses.testnet.json)
+            if [ "$built" != "$recorded" ]; then
+              echo "PCR$n mismatch:"
+              echo "  built    $built"
+              echo "  recorded $recorded"
+              fail=1
+            else
+              echo "PCR$n ok: $built"
+            fi
+          done
+          exit $fail

@@ -1,0 +1,61 @@
+name: Rust
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # No future builds reuse a CI environment, so incremental compilation is pure
+  # overhead here.
+  CARGO_INCREMENTAL: 0
+  # Retry transient network failures when fetching crates and toolchains.
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
+  RUST_BACKTRACE: short
+
+defaults:
+  run:
+    working-directory: src/nautilus-server
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v4
+      # `rustup toolchain install` with no argument reads rust-toolchain.toml
+      # (found by walking up to the repo root) and installs the pinned channel
+      # and its clippy/rustfmt components.
+      - name: Install the pinned toolchain
+        run: rustup update && rustup toolchain install
+      - name: cargo test
+        run: cargo test --locked
+      - name: doctests
+        run: cargo test --locked --doc
+
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the pinned toolchain
+        run: rustup update && rustup toolchain install
+      - name: cargo clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+  rustfmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the pinned toolchain
+        run: rustup update && rustup toolchain install
+      - name: cargo fmt
+        run: cargo fmt --all -- --check
