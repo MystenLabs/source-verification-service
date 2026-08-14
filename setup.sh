@@ -76,7 +76,10 @@ fi
 echo '{}' > secrets.json
 
 # --- gate: the image must reproduce the recorded measurements ---
-eif=$(nitro-cli describe-eif --eif-path nitro.eif)
+# nitro-cli opens /var/log/nitro_enclaves on every command, so run it via sudo
+# (and ensure the dir) or describe-eif fails (E19) on a freshly provisioned host.
+sudo mkdir -p /var/log/nitro_enclaves
+eif=$(sudo nitro-cli describe-eif --eif-path nitro.eif)
 for n in 0 1 2; do
   got=$(echo "$eif" | jq -r ".Measurements.PCR$n"); exp=$(eval echo \$XP$n)
   [ "$got" = "$exp" ] || { echo "PCR$n mismatch: image $got, config $exp -- refusing to register" >&2; exit 1; }
