@@ -5,11 +5,14 @@ rather than forking it or depending on it.
 
 **Upstream commit: `048bae1dc2715bb201b424e3febd0056cba8dfe8`**
 
-Vendoring is how Nautilus is meant to be used. The `enclave` Move package is a
-`0x0` template with no `published-at`: each deployer publishes their own copy.
-(A `published-at` appearing in a testnet `Move.lock` is a build artifact, not a
-shared package to link against.) The Rust server is likewise a template to be
-modified, not a library to depend on.
+Vendoring is how Nautilus is meant to be used. Upstream, the `enclave` Move
+package is an unpublished template; each deployer vendors it and publishes their
+own copy — ours is recorded in `move/enclave/Published.toml`. Its manifest is
+new-style (edition `2024`, no hard-coded `[addresses]` — the address binds by
+name): the upstream template still ships it in old-style syntax, and vendoring it
+here is the point at which that is modernized, so a new package is not defining
+old-style syntax. The Rust server is likewise a template to be modified, not a
+library to depend on.
 
 ## Verifying this subset
 
