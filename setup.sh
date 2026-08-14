@@ -84,21 +84,21 @@ done
 echo "PCRs match the recorded EnclaveConfig"
 
 # --- run non-debug, feed secrets, expose :3000 ---
-# On a freshly provisioned host the allocator needs time to reserve the enclave
-# memory as hugepages; a run-enclave started too early hangs rather than failing,
-# so bound each attempt with a timeout and clear any stuck enclave between tries.
+# The allocator reserves the enclave memory as 1G hugepages asynchronously after
+# its restart; run-enclave started before that finishes hangs and can wedge the
+# CPU pool. Wait for the reservation to land, then run once.
 sudo mkdir -p /var/log/nitro_enclaves
-CID=""
-for attempt in $(seq 1 10); do
-  sudo nitro-cli terminate-enclave --all >/dev/null 2>&1 || true
-  sleep 5
-  if sudo timeout 60 nitro-cli run-enclave --cpu-count "$CPUS" --memory "$MEM" --eif-path nitro.eif >/dev/null 2>&1; then
-    CID=$(sudo nitro-cli describe-enclaves | jq -r '.[0].EnclaveCID // empty')
-    [ -n "$CID" ] && break
-  fi
-  echo "enclave not ready (attempt $attempt); waiting for the allocator..."
+need=$(( MEM / 1024 ))
+for _ in $(seq 1 60); do
+  got=$(cat /sys/devices/system/node/node*/hugepages/hugepages-1048576kB/nr_hugepages 2>/dev/null | awk '{s+=$1} END{print s+0}')
+  [ "${got:-0}" -ge "$need" ] && break
+  sleep 2
 done
-[ -n "$CID" ] || { echo "enclave failed to start after retries" >&2; exit 1; }
+echo "allocator reserved ${got:-0}/$need x 1G hugepages"
+sudo nitro-cli terminate-enclave --all >/dev/null 2>&1 || true
+sudo timeout 90 nitro-cli run-enclave --cpu-count "$CPUS" --memory "$MEM" --eif-path nitro.eif >/dev/null 2>&1 || true
+CID=$(sudo nitro-cli describe-enclaves | jq -r '.[0].EnclaveCID // empty')
+[ -n "$CID" ] || { echo "enclave failed to start" >&2; exit 1; }
 echo "enclave running, CID=$CID"
 sleep 8
 cat secrets.json | timeout 10 socat - "VSOCK-CONNECT:$CID:7777"
