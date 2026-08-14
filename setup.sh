@@ -84,15 +84,20 @@ done
 echo "PCRs match the recorded EnclaveConfig"
 
 # --- run non-debug, feed secrets, expose :3000 ---
-# The allocator reserves hugepages asynchronously after its restart, so on a
-# freshly provisioned host run-enclave can lose the race; retry briefly.
+# On a freshly provisioned host the allocator needs time to reserve the enclave
+# memory as hugepages; a run-enclave started too early hangs rather than failing,
+# so bound each attempt with a timeout and clear any stuck enclave between tries.
 sudo mkdir -p /var/log/nitro_enclaves
-sudo nitro-cli terminate-enclave --all >/dev/null 2>&1 || true
-for attempt in 1 2 3 4 5; do
-  sudo nitro-cli run-enclave --cpu-count "$CPUS" --memory "$MEM" --eif-path nitro.eif >/dev/null 2>&1 && break
-  echo "run-enclave attempt $attempt failed; waiting for the allocator..."; sleep 5
+CID=""
+for attempt in $(seq 1 10); do
+  sudo nitro-cli terminate-enclave --all >/dev/null 2>&1 || true
+  sleep 5
+  if sudo timeout 60 nitro-cli run-enclave --cpu-count "$CPUS" --memory "$MEM" --eif-path nitro.eif >/dev/null 2>&1; then
+    CID=$(sudo nitro-cli describe-enclaves | jq -r '.[0].EnclaveCID // empty')
+    [ -n "$CID" ] && break
+  fi
+  echo "enclave not ready (attempt $attempt); waiting for the allocator..."
 done
-CID=$(sudo nitro-cli describe-enclaves | jq -r '.[0].EnclaveCID // empty')
 [ -n "$CID" ] || { echo "enclave failed to start after retries" >&2; exit 1; }
 echo "enclave running, CID=$CID"
 sleep 8
