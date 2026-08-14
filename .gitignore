@@ -7,3 +7,5 @@ secrets.json
 user-data.sh
 trust-policy.json
 secrets-policy.json
+enclave-ops.conf
+.enclave-session

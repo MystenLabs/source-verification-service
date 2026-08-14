@@ -1,0 +1,23 @@
+# Operator configuration for setup.sh / attest.sh / teardown.sh.
+# Copy this to enclave-ops.conf (gitignored) and fill it in for your host.
+
+# The AWS Nitro Enclaves-capable EC2 instance and how to reach it.
+INSTANCE_ID=i-xxxxxxxxxxxxxxxxx
+REGION=us-east-1
+SSH_KEY=$HOME/.ssh/your-key.pem
+SSH_USER=ec2-user
+
+# The clone of this repository on the host, relative to the SSH user's home.
+HOST_REPO=source-verification-service
+
+# The network you are attesting on. On-chain ids are read from
+# addresses.<NETWORK>.json; sui on this machine must be configured for it.
+NETWORK=testnet
+
+# Enclave resources. MEMORY_MIB must be >= the tmpfs cap in run.sh (6G) plus
+# headroom; the allocator is raised to this if it is lower.
+CPU_COUNT=2
+MEMORY_MIB=8192
+
+# Local port the enclave HTTP is tunneled to on this machine.
+LOCAL_PORT=3000
