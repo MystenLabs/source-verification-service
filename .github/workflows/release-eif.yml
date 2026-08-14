@@ -1,0 +1,65 @@
+name: Release the enclave image
+
+# On a published release, rebuild the canonical EIF reproducibly, verify its
+# measurements match the recorded deployment, and attach it to the release.
+# Operators download it (setup.sh) instead of building it themselves; the PCR
+# gate at registration still proves it is canonical. A build that does not
+# reproduce the recorded PCRs fails here, so a non-canonical image is never
+# published.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to build for and attach the EIF to"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-attach:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Build at the released commit, so the EIF matches what the tag names.
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo docker image prune --all --force
+          df -h /
+
+      - name: Build the verifier and the EIF
+        run: |
+          make verifier
+          make ENCLAVE_APP=source-verification
+
+      - name: Assert the PCRs match addresses.testnet.json
+        run: |
+          set -euo pipefail
+          fail=0
+          for n in 0 1 2; do
+            built=$(awk -v k="PCR$n" '$2 == k { print $1 }' out/nitro.pcrs)
+            recorded=$(jq -r ".pcrs.pcr$n" addresses.testnet.json)
+            if [ "$built" != "$recorded" ]; then
+              echo "PCR$n mismatch: built $built, recorded $recorded"; fail=1
+            else
+              echo "PCR$n ok: $built"
+            fi
+          done
+          exit $fail
+
+      - name: Attach the EIF and its measurements to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: gh release upload "$TAG" out/nitro.eif out/nitro.pcrs --clobber
