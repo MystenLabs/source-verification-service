@@ -180,14 +180,11 @@ downloading it and checking its digest — introducing no artifact of this
 project's own that anyone must obtain by a different route, or trust by a
 different argument, than the toolchains they are downloading anyway.
 
-The verification code has since shipped in a sui release (testnet-v1.77.1), so that
-download is now possible; migrating the image to it — pinned by version and digest,
-deleting the build step — is planned but not yet done. Today the image still builds
-the verifier from a pinned revision **and** a pinned binary digest, because `cargo
-build --release` is not guaranteed to be byte reproducible: the revision records
-provenance, the digest is what pins the measurements. Both are in the `Makefile`,
-and a mismatch fails the build rather than silently producing an image whose PCRs
-do not match the published ones.
+The verification code has shipped in a sui release, and the image now takes the
+verifier from there: the `Makefile` downloads the pinned release (`testnet-v1.77.2`)
+and checks the digest of the extracted `sui` binary, with no build step. The digest
+is what pins the measurements, and a mismatch fails the build rather than silently
+producing an image whose PCRs do not match the published ones.
 
 ## Why not the git hash
 

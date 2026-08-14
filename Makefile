@@ -16,21 +16,22 @@ MEMORY := 8192M
 
 # The measured verifier: the Move compiler baked into the enclave image.
 #
-# Pinned by revision AND by the digest of the resulting binary, because the PCRs
-# are only meaningful if someone else can arrive at the same image. The revision
-# alone is not enough: `cargo build --release` is not guaranteed byte
-# reproducible, so a matching revision can still yield a different binary and
-# therefore different PCRs. The digest is what actually pins the image; the
-# revision records where it came from.
+# It is the official sui release, pinned by version AND by the digest of the
+# extracted binary. The PCRs are only meaningful if someone else can arrive at
+# the same image; a released artifact is content-addressed, so reproducing the
+# image is a download and a digest check -- no build step. The digest is what
+# actually pins the image; the version records which release it came from.
 #
 # A mismatch is reported rather than ignored. If you hit one, the honest reading
-# is that your toolchain produced a different binary from the published one --
-# not that the check is wrong. Use the published artifact to reproduce the PCRs
-# exactly.
-SUI_SRC ?=
+# is that you fetched a different binary from the published one -- not that the
+# check is wrong. Use the pinned release to reproduce the PCRs exactly.
 VERIFIER := verifier/sui
-VERIFIER_REV := e87243ed1d13e3e2f13362dc75fa3ee80f0ba154
-VERIFIER_SHA256 := 6b314ba6d46707092b0c4e24a46d78a3bd9f08b60a26b0efe7ec74147b129351
+VERIFIER_VERSION := testnet-v1.77.2
+VERIFIER_SHA256 := c902aa06bf0c1e157e9f86c65efec504cd0fbc5c74dd472e3fd6dcab86fe3fa3
+
+# The SHA-256 tool differs by host: sha256sum on the Linux enclave host, shasum
+# on macOS for local reproduction. Use whichever exists.
+SHA256 := $(shell command -v sha256sum >/dev/null 2>&1 && echo sha256sum || echo shasum -a 256)
 
 .DEFAULT_GOAL :=
 .PHONY: default
@@ -86,21 +87,10 @@ update:
 verifier: $(VERIFIER)
 
 $(VERIFIER):
-	@test -n "$(SUI_SRC)" || { echo "set SUI_SRC=/path/to/a/sui/checkout"; exit 1; }
-	git -C "$(SUI_SRC)" cat-file -e $(VERIFIER_REV) 2>/dev/null || \
-		{ echo "$(SUI_SRC) does not contain $(VERIFIER_REV); fetch it first"; exit 1; }
-	git -C "$(SUI_SRC)" checkout -q $(VERIFIER_REV)
 	mkdir -p $(dir $(VERIFIER))
-	docker run --rm \
-		-v "$(abspath $(SUI_SRC))":/src -w /src \
-		-e GIT_REVISION="$(VERIFIER_REV)" \
-		rust:latest bash -c '\
-			apt-get update -qq && \
-			apt-get install -y -qq clang cmake libssl-dev pkg-config protobuf-compiler >/dev/null && \
-			git config --global --add safe.directory /src && \
-			cargo build --release --bin sui'
-	cp "$(abspath $(SUI_SRC))/target/release/sui" $(VERIFIER)
-	@actual=$$(shasum -a 256 $(VERIFIER) | cut -d" " -f1); \
+	curl -fsSL "https://github.com/MystenLabs/sui/releases/download/$(VERIFIER_VERSION)/sui-$(VERIFIER_VERSION)-ubuntu-x86_64.tgz" \
+		| tar -xz -C $(dir $(VERIFIER)) ./sui
+	@actual=$$($(SHA256) $(VERIFIER) | cut -d" " -f1); \
 	if [ "$$actual" != "$(VERIFIER_SHA256)" ]; then \
 		echo "verifier digest mismatch:"; \
 		echo "  expected $(VERIFIER_SHA256)"; \
