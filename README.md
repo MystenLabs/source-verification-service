@@ -2,22 +2,25 @@
 
 Verifiable Move source verification in an AWS Nitro enclave, recorded on Sui.
 
-An enclave rebuilds a published Move package from its source and compares the
-result against the bytecode on chain. When they match it signs a statement
-saying so, which anyone can record as an on-chain attestation.
+A Move package published on Sui exists on chain as bytecode. Its source lives in
+a git repository, and nothing connects the two — a project can point at any
+repository and claim it is what runs. This service closes that gap without asking
+anyone to trust it.
 
-The point is that the statement is worth something without trusting whoever ran
-it: the enclave's measurements say what code produced the signature, and the
-whole check can be reproduced by anyone who doubts it.
+An AWS Nitro enclave clones the source, rebuilds it with the compiler the package
+was published with, and compares the result against the on-chain bytecode and
+linkage. When they match it signs a statement to that effect, which anyone can
+record on chain as an `Attestation<SourceVerification>`.
 
-This branch is a placeholder. The system arrives as a reviewable series:
+The statement is worth something without trusting whoever produced it. The
+enclave's measurements say what code created the signature, the payload records
+which compiler performed the rebuild, and the whole check can be reproduced by
+anyone who doubts it. What it establishes is narrow and worth stating plainly: it
+is an **identity** check — the code you can read is the code that runs — not a
+security review. A verified package can still be malicious.
 
-| PR | Contents |
-| --- | --- |
-| 1 | Design and trust model — what is claimed, and what deliberately is not |
-| 2 | The vendored Nautilus subset this builds on |
-| 3 | The enclave image, and how to reproduce its measurements |
-| 4 | The enclave application |
-| 5 | The on-chain contract and the client |
+## Reading order
 
-Read PR 1 first; the rest are best judged against the contract it states.
+- **[DESIGN.md](DESIGN.md)** — what an attestation claims, what it deliberately
+  does not, and everything that has to hold for it to be sound. Start here; the
+  rest is best judged against the contract it states.
