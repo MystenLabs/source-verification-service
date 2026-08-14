@@ -16,27 +16,30 @@ library to depend on.
 
 ## Verifying this subset
 
-Every file below is **byte-identical** to the upstream commit, so this import can
-be checked mechanically rather than read:
+The files below are **byte-identical** to the upstream commit, so most of this
+import can be checked mechanically rather than read. A handful are modified for
+this service; those are listed under [Local modifications](#local-modifications)
+and excluded here.
+
+Byte-identity is provenance, not endorsement: upstream Nautilus is itself
+unaudited and provided as-is under its licence, so matching it establishes *what*
+was vendored, not that the vendored code is correct.
 
 ```shell
 git clone https://github.com/MystenLabs/nautilus /tmp/nautilus
 git -C /tmp/nautilus checkout 048bae1dc2715bb201b424e3febd0056cba8dfe8
 
-for f in LICENSE rust-toolchain.toml Makefile Containerfile \
-         src/nautilus-server/Cargo.toml src/nautilus-server/Cargo.lock \
-         src/nautilus-server/run.sh src/nautilus-server/traffic_forwarder.py \
-         src/nautilus-server/src/lib.rs src/nautilus-server/src/main.rs \
-         src/nautilus-server/src/common.rs \
-         move/enclave/Move.toml move/enclave/sources/enclave.move \
+for f in LICENSE \
+         src/nautilus-server/traffic_forwarder.py \
          configure_enclave.sh expose_enclave.sh register_enclave.sh reset_enclave.sh; do
     diff -q "/tmp/nautilus/$f" "$f" || echo "DIFFERS: $f"
 done
 ```
 
-Later pull requests modify several of these files. That is deliberate: this
-import establishes a verifiable baseline, so every subsequent change to vendored
-code appears as a reviewable diff rather than being buried inside a large import.
+Modified files (`common.rs`, `rust-toolchain.toml`, `Containerfile`, `Makefile`,
+`run.sh`, the two `Cargo` files, `lib.rs`, `main.rs`, `move/enclave/Move.toml`,
+`enclave.move`) are best reviewed as diffs against the same upstream commit —
+`git diff` against `/tmp/nautilus/<f>` shows exactly what this service changed.
 
 ## What was taken
 
@@ -67,10 +70,38 @@ and a stale copy would be worse than a pointer to the original.
 `deny.toml` and `scripts/` are the upstream repository's CI configuration and are
 replaced by this repository's own.
 
-The example apps are still referenced by `Cargo.toml` features and by `lib.rs`'s
-`#[cfg]` blocks in this import, because these files are vendored unmodified.
-Removing those references is part of a later pull request, where it is visible as
-a diff.
+## Local modifications
+
+Some vendored files are changed for this service. Each is a diff against the
+upstream commit, reviewable on its own:
+
+- **`src/nautilus-server/src/lib.rs`, `main.rs`** — reduced to the single app this
+  service ships. The upstream template carries a multi-app `#[cfg]` structure, an
+  `api_key` in `AppState`, and a seal host-init server; none apply here, and their
+  example modules were never vendored, so the references are removed.
+- **`src/nautilus-server/Cargo.toml`, `Cargo.lock`** — drops the example-only
+  features and their optional dependencies (`regex`, `sui-crypto`,
+  `sui-sdk-types`, `seal-sdk`), and defaults the `source-verification` feature.
+  Also bumps `tokio` and switches `aws-nitro-enclaves-nsm-api` from a git pin to
+  its crates.io release; those dependency changes are offered upstream as
+  [nautilus#38](https://github.com/MystenLabs/nautilus/pull/38).
+- **`Containerfile`, `Makefile`, `src/nautilus-server/run.sh`** — the enclave image
+  build, changed to carry the verifier and its runtime, pin every input, and
+  configure verification's egress and scratch space.
+- **`src/nautilus-server/src/common.rs`** — tidied while addressing review:
+  grouped imports, ordered type definitions before impls before free functions,
+  renamed `GetAttestationResponse` to `AttestationResponse`, lifted the
+  health-check timeout to a constant, dropped a needless payload clone, and split
+  the deeply-nested `health_check` into helpers. Purely a cleanup; offered
+  upstream as [nautilus#38](https://github.com/MystenLabs/nautilus/pull/38).
+- **`rust-toolchain.toml`** — bumped from 1.88 to 1.96.1. This governs local
+  builds only — the enclave image builds with the stagex-pinned Rust — so it does
+  not affect the PCRs. Offered upstream as
+  [nautilus#38](https://github.com/MystenLabs/nautilus/pull/38).
+- **`move/enclave/Move.toml`** — modernized from the old-style template manifest
+  (edition `2024.beta`, an `[addresses] enclave = "0x0"` block) to new-style
+  (edition `2024`, the address bound by name). Offered upstream as
+  [nautilus#38](https://github.com/MystenLabs/nautilus/pull/38).
 
 ## Changes made upstream
 
