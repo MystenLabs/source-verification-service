@@ -6,8 +6,6 @@ name: Enclave e2e (verify-only)
 # no sui key is needed -- just an OIDC role to launch/terminate EC2. Runs on
 # demand, and after a release has attached its EIF.
 on:
-  push:
-    branches: [ops/enclave-scripts]   # TEMP: exercise this before merge; remove after
   workflow_dispatch:
     inputs:
       tag:

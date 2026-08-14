@@ -7,12 +7,8 @@ attestations of the same trusted type. You do **not** publish a package of your
 own; the value is producing attestations of *this* package's type, which explorers
 like MVR trust.
 
-This document describes how to stand that enclave up and produce attestations.
-
-> **Status:** the turnkey `setup` / `attest` / `teardown` scripts and their exact
-> steps are being finalized. This is the intended flow; the underlying pieces exist
-> today as `configure_enclave.sh`, `expose_enclave.sh`, `register_enclave.sh`,
-> `attest_source.sh`, and `reset_enclave.sh`.
+This document describes how to stand that enclave up and produce attestations,
+using the `setup.sh` / `attest.sh` / `teardown.sh` scripts.
 
 [nautilus]: https://docs.sui.io/sui-stack/nautilus/nautilus-overview
 
@@ -32,29 +28,39 @@ verifiable: [source-verification troubleshooting][troubleshoot].
 
 ## 2. Prerequisites
 
-- An AWS account with **Nitro Enclaves** available and permission to launch EC2.
+- An AWS account with permission to launch EC2 (Nitro Enclaves-capable).
 - The `sui` CLI configured for the network you are attesting on, with a funded
   address for gas.
-- A clone of this repository.
+- A clone of this repository. Copy `enclave-ops.conf.example` to
+  `enclave-ops.conf` and fill in your AWS launch parameters (region, a stock
+  Amazon Linux 2023 AMI, an `m5.2xlarge`, an EC2 key pair, a subnet, and a
+  security group allowing SSH). On-chain ids are read from
+  `addresses.<network>.json`.
 
-## 3. `setup` — stand up and register the enclave
+## 3. `./setup.sh` — stand up and register the enclave
 
-`setup` launches a Nitro-capable instance, builds the canonical image
-(reproducibly, so its measurements match the on-chain `EnclaveConfig`), runs it,
-exposes it, and registers it permissionlessly — no `Cap`, no publish. If the built
-measurements do not match the canonical configuration, it stops before registering.
+Launches a fresh Nitro instance, provisions it, and **downloads** the canonical
+enclave image from the release (`--build` builds it from source instead). It
+asserts the image's PCRs match the on-chain `EnclaveConfig` before registering —
+if they do not, it stops. Then it runs the enclave, exposes it over an SSH tunnel,
+and registers it permissionlessly (no `Cap`, no publish). The enclave needs **12G**
+of memory for its verification scratch, so the instance must be an `m5.2xlarge` or
+larger.
 
-## 4. `attest` — verify a package and record the attestation
+`--no-register` brings the enclave up without registering — enough to verify a
+package without any on-chain writes or a funded key.
 
-Run from inside the package directory (the one with `Move.toml`). It reads the git
-coordinates from the checkout, asks the enclave to verify the pushed commit, and —
-given the on-chain ids — records the `Attestation<SourceVerification>`. The signed
-response is itself the product; recording it on-chain is optional and anyone can do
-it later.
+## 4. `./attest.sh <package-dir>` — verify a package and record the attestation
 
-## 5. `teardown` — stop and release
+Point it at a checkout of the package, at the pushed commit you want attested. It
+reads the git coordinates, asks the enclave to verify that commit, and records the
+`Attestation<SourceVerification>`. `--no-attest` stops at the signed response,
+which is itself the product; recording it on-chain is optional.
 
-`teardown` terminates the enclave and releases the instance.
+## 5. `./teardown.sh` — delete and release
+
+Deletes the enclave object (it is ephemeral — a fresh key every boot) and
+terminates the instance, leaving nothing running and no storage rent.
 
 ## Limitations (MVP)
 
