@@ -84,9 +84,16 @@ done
 echo "PCRs match the recorded EnclaveConfig"
 
 # --- run non-debug, feed secrets, expose :3000 ---
+# The allocator reserves hugepages asynchronously after its restart, so on a
+# freshly provisioned host run-enclave can lose the race; retry briefly.
+sudo mkdir -p /var/log/nitro_enclaves
 sudo nitro-cli terminate-enclave --all >/dev/null 2>&1 || true
-sudo nitro-cli run-enclave --cpu-count "$CPUS" --memory "$MEM" --eif-path nitro.eif >/dev/null
-CID=$(sudo nitro-cli describe-enclaves | jq -r '.[0].EnclaveCID')
+for attempt in 1 2 3 4 5; do
+  sudo nitro-cli run-enclave --cpu-count "$CPUS" --memory "$MEM" --eif-path nitro.eif >/dev/null 2>&1 && break
+  echo "run-enclave attempt $attempt failed; waiting for the allocator..."; sleep 5
+done
+CID=$(sudo nitro-cli describe-enclaves | jq -r '.[0].EnclaveCID // empty')
+[ -n "$CID" ] || { echo "enclave failed to start after retries" >&2; exit 1; }
 echo "enclave running, CID=$CID"
 sleep 8
 cat secrets.json | timeout 10 socat - "VSOCK-CONNECT:$CID:7777"
