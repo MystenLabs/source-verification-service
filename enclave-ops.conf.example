@@ -1,21 +1,30 @@
 # Operator configuration for setup.sh / attest.sh / teardown.sh.
-# Copy this to enclave-ops.conf (gitignored) and fill it in for your host.
+# Copy this to enclave-ops.conf (gitignored) and fill it in.
+#
+# setup launches a fresh Nitro instance from a stock AMI, provisions it, and
+# downloads the pre-built enclave image; it does not reuse any existing host.
 
-# The AWS Nitro Enclaves-capable EC2 instance and how to reach it.
-INSTANCE_ID=i-xxxxxxxxxxxxxxxxx
+# AWS launch parameters for the instance setup creates and teardown destroys.
 REGION=us-east-1
-SSH_KEY=$HOME/.ssh/your-key.pem
+AMI_ID=ami-085ad6ae776d8f09c     # a stock Amazon Linux 2023 AMI in this region
+INSTANCE_TYPE=m5.xlarge          # must support Nitro Enclaves
+KEY_NAME=your-key                # an EC2 key pair name in this region
+SSH_KEY=$HOME/.ssh/your-key.pem  # the matching private key
 SSH_USER=ec2-user
-
-# The clone of this repository on the host, relative to the SSH user's home.
-HOST_REPO=source-verification-service
+SUBNET_ID=subnet-xxxxxxxx        # a subnet that assigns public IPs
+SG_ID=sg-xxxxxxxx                # a security group allowing SSH (22) from you
 
 # The network you are attesting on. On-chain ids are read from
 # addresses.<NETWORK>.json; sui on this machine must be configured for it.
 NETWORK=testnet
 
-# Enclave resources. MEMORY_MIB must be >= the tmpfs cap in run.sh (6G) plus
-# headroom; the allocator is raised to this if it is lower.
+# Which release's pre-built EIF to download. Its PCRs must match the recorded
+# EnclaveConfig, or setup refuses to register. Pass --build to setup to build
+# the image from source instead of downloading it.
+RELEASE_TAG=testnet/v1
+
+# Enclave resources. MEMORY_MIB must clear the tmpfs cap in run.sh (6G) with
+# headroom; the allocator is set to this during provisioning.
 CPU_COUNT=2
 MEMORY_MIB=8192
 

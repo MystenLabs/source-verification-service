@@ -13,11 +13,19 @@ NO_ATTEST="${2:-}"
 
 [ -f "$SESSION" ] || die "no enclave session; run ./setup.sh first"
 # shellcheck source=/dev/null
-. "$SESSION"   # ENCLAVE_URL, ENCLAVE_OBJECT_ID
-
+. "$SESSION"   # INSTANCE_ID, ENCLAVE_URL, ENCLAVE_OBJECT_ID
 require_sui_network
-curl -sf --max-time 15 "$ENCLAVE_URL/get_attestation" >/dev/null \
-    || die "enclave not reachable at $ENCLAVE_URL; run ./setup.sh"
+
+# Reopen the tunnel if setup's dropped (e.g. the laptop slept).
+if ! curl -sf --max-time 10 "$ENCLAVE_URL/get_attestation" >/dev/null 2>&1; then
+    log "tunnel down; reopening"
+    pkill -f "$LOCAL_PORT:localhost:3000" 2>/dev/null || true
+    ssh -f -N -L "$LOCAL_PORT:localhost:3000" -i "$SSH_KEY" -o ExitOnForwardFailure=yes \
+        -o StrictHostKeyChecking=accept-new "$SSH_USER@$(host_ip)"
+    sleep 2
+    curl -sf --max-time 15 "$ENCLAVE_URL/get_attestation" >/dev/null \
+        || die "enclave not reachable at $ENCLAVE_URL; re-run ./setup.sh"
+fi
 
 log "attesting $PKG_DIR against $NETWORK via $ENCLAVE_URL"
 cd "$PKG_DIR"
