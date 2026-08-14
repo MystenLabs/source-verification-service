@@ -102,6 +102,14 @@ upstream commit, reviewable on its own:
   (edition `2024.beta`, an `[addresses] enclave = "0x0"` block) to new-style
   (edition `2024`, the address bound by name). Offered upstream as
   [nautilus#38](https://github.com/MystenLabs/nautilus/pull/38).
+- **`move/enclave/sources/enclave.move`** — adds `Enclave::config_version` and
+  `EnclaveConfig::version` accessors. Both version fields are private upstream with
+  nothing exposing them, so no downstream package can read them, and the contract
+  needs them to enforce PCR rotation (see
+  [DESIGN.md](DESIGN.md#rotation-is-enforced)). Purely additive; offered upstream
+  as [nautilus#37](https://github.com/MystenLabs/nautilus/pull/37). Until it
+  merges, a re-sync must re-apply these rather than take upstream `enclave.move`
+  wholesale.
 
 ## Changes made upstream
 

@@ -27,12 +27,16 @@ security review. A verified package can still be malicious.
 - **[VENDORED.md](VENDORED.md)** — this builds on
   [Nautilus](https://github.com/MystenLabs/nautilus), vendored rather than forked.
   This records which commit, and how to verify the import.
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** — the current testnet deployment: package and
+  object ids, the enclave measurements, and how to reproduce the image that
+  produces them.
 
 ## Layout
 
 ```
 move/
   enclave/               vendored Nautilus enclave package (Enclave, EnclaveConfig)
+  source-verification/   the attestation contract, and its client script
 src/nautilus-server/
   src/apps/
     source-verification/ the enclave application
@@ -41,3 +45,11 @@ src/nautilus-server/
   ...                    vendored Nautilus server skeleton
 Containerfile, Makefile  the reproducible enclave image build
 ```
+
+## Status
+
+Working end to end on testnet: an enclave verifies a package and the result is
+recorded on chain, rendering through its Display. It is not audited, and
+[DESIGN.md](DESIGN.md#known-gaps) lists what is deliberately unfinished — no
+freshness check, an availability endpoint that is unprotected, egress limited to
+an allowlist. Read those before relying on it.
