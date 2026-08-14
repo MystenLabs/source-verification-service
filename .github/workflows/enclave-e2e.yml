@@ -1,0 +1,90 @@
+name: Enclave e2e (verify-only)
+
+# Smoke-tests the published enclave image end-to-end, without touching the chain:
+# launches a fresh Nitro instance, downloads the release EIF, brings the enclave
+# up, and verifies a fixed package through it. No register and no attestation, so
+# no sui key is needed -- just an OIDC role to launch/terminate EC2. Runs on
+# demand, and after a release has attached its EIF.
+on:
+  push:
+    branches: [ops/enclave-scripts]   # TEMP: exercise this before merge; remove after
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag whose nitro.eif to test"
+        required: true
+        default: testnet/v1
+  release:
+    types: [published]
+
+permissions:
+  id-token: write     # assume the AWS role via OIDC
+  contents: read
+
+concurrency:
+  group: enclave-e2e-${{ github.event.release.tag_name || inputs.tag || 'testnet/v1' }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag || 'testnet/v1' }}
+      KEY_NAME: ci-enclave-${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Wait for the release to carry nitro.eif
+        run: |
+          for _ in $(seq 1 30); do
+            if curl -sL "https://api.github.com/repos/${{ github.repository }}/releases/tags/$TAG" \
+                 | jq -e '.assets[]? | select(.name=="nitro.eif")' >/dev/null; then exit 0; fi
+            echo "waiting for nitro.eif on $TAG..."; sleep 10
+          done
+          echo "nitro.eif never appeared on release $TAG"; exit 1
+
+      - name: Import an ephemeral SSH key
+        run: |
+          ssh-keygen -t ed25519 -f /tmp/cikey -N "" -q
+          aws ec2 import-key-pair --key-name "$KEY_NAME" --public-key-material fileb:///tmp/cikey.pub
+
+      - name: Write operator config
+        run: |
+          cat > enclave-ops.conf <<EOF
+          REGION=${{ vars.AWS_REGION }}
+          AMI_ID=${{ vars.CI_AMI_ID }}
+          INSTANCE_TYPE=m5.2xlarge
+          KEY_NAME=$KEY_NAME
+          SSH_KEY=/tmp/cikey
+          SSH_USER=ec2-user
+          SUBNET_ID=${{ vars.CI_SUBNET_ID }}
+          SG_ID=${{ vars.CI_SG_ID }}
+          NETWORK=testnet
+          RELEASE_TAG=$TAG
+          CPU_COUNT=2
+          MEMORY_MIB=12288
+          LOCAL_PORT=3000
+          EOF
+
+      - name: Bring up the enclave (no register)
+        run: ./setup.sh --no-register
+
+      - name: Fetch the test package
+        run: |
+          git clone -q https://github.com/MystenLabs/attestations.git /tmp/attestations
+          git -C /tmp/attestations checkout -q 7b4ec654228eb71b4c1aad52b550c1b1ce0e1ac2
+
+      - name: Verify the package through the enclave (no attest)
+        run: ./attest.sh /tmp/attestations/demo/attestations-demo-auditor --no-attest
+
+      - name: Teardown
+        if: always()
+        run: |
+          ./teardown.sh || true
+          aws ec2 delete-key-pair --key-name "$KEY_NAME" 2>/dev/null || true
