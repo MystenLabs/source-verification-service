@@ -46,7 +46,10 @@ for _ in $(seq 1 40); do hssh true 2>/dev/null && break; sleep 5; done
 hssh true 2>/dev/null || die "host $IP not reachable over ssh"
 
 log "provisioning and bringing up the enclave (EIF: ${EIF_SRC%%:*})"
-hssh "bash -s -- $MEMORY_MIB $CPU_COUNT $PCR0 $PCR1 $PCR2 '$EIF_SRC' $REPO '$RELEASE_TAG'" <<'REMOTE'
+# The bring-up leaves detached daemons (proxies, forwarder) running, so ssh can
+# return a spurious non-zero (broken pipe) even on success. Judge by the output
+# marker, not the exit code.
+out=$(hssh "bash -s -- $MEMORY_MIB $CPU_COUNT $PCR0 $PCR1 $PCR2 '$EIF_SRC' $REPO '$RELEASE_TAG'" <<'REMOTE'
 set -e
 MEM=$1; CPUS=$2; XP0=$3; XP1=$4; XP2=$5; EIF_SRC=$6; REPO=$7; TAG=$8
 
@@ -129,6 +132,9 @@ done
 [ "$len" -gt 100 ] || { echo "enclave not serving (attestation length $len)" >&2; exit 1; }
 echo "enclave serving (attestation length $len)"
 REMOTE
+) || true
+printf '%s\n' "$out"
+grep -q "enclave serving" <<<"$out" || die "enclave bring-up did not reach 'enclave serving'"
 
 log "opening tunnel localhost:$LOCAL_PORT -> enclave :3000"
 pkill -f "$LOCAL_PORT:localhost:3000" 2>/dev/null || true
