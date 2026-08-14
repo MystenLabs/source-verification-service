@@ -100,12 +100,21 @@ sudo timeout 90 nitro-cli run-enclave --cpu-count "$CPUS" --memory "$MEM" --eif-
 CID=$(sudo nitro-cli describe-enclaves | jq -r '.[0].EnclaveCID // empty')
 [ -n "$CID" ] || { echo "enclave failed to start" >&2; exit 1; }
 echo "enclave running, CID=$CID"
-sleep 8
-cat secrets.json | timeout 10 socat - "VSOCK-CONNECT:$CID:7777"
+# The enclave starts listening on 7777 for secrets a moment after boot; retry.
+sleep 5
+for _ in $(seq 1 10); do
+  cat secrets.json | timeout 10 socat - "VSOCK-CONNECT:$CID:7777" 2>/dev/null && break
+  sleep 3
+done
 pkill -f 'TCP4-LISTEN:3000' 2>/dev/null || true
 nohup socat TCP4-LISTEN:3000,reuseaddr,fork "VSOCK-CONNECT:$CID:3000" >/tmp/fwd.log 2>&1 &
-sleep 10
-len=$(curl -s --max-time 15 localhost:3000/get_attestation | jq -r '.attestation' | wc -c)
+# After secrets, the server mounts its tmpfs and comes up; poll until it serves.
+len=0
+for _ in $(seq 1 20); do
+  len=$(curl -s --max-time 10 localhost:3000/get_attestation 2>/dev/null | jq -r '.attestation // empty' | wc -c)
+  [ "$len" -gt 100 ] && break
+  sleep 3
+done
 [ "$len" -gt 100 ] || { echo "enclave not serving (attestation length $len)" >&2; exit 1; }
 echo "enclave serving (attestation length $len)"
 REMOTE
