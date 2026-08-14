@@ -57,7 +57,7 @@ sudo systemctl restart nitro-enclaves-allocator.service; sleep 3
 declare -A EG=( [8101]=github.com [8102]=raw.githubusercontent.com [8103]=fullnode.testnet.sui.io [8104]=release-assets.githubusercontent.com [8105]=fullnode.mainnet.sui.io )
 for p in "${!EG[@]}"; do
   pgrep -f "vsock-proxy $p " >/dev/null \
-    || nohup vsock-proxy "$p" "${EG[$p]}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml >"/tmp/vsock-$p.log" 2>&1 &
+    || setsid vsock-proxy "$p" "${EG[$p]}" 443 --config /etc/nitro_enclaves/vsock-proxy.yaml </dev/null >"/tmp/vsock-$p.log" 2>&1 &
 done
 
 # --- obtain the EIF ---
@@ -110,7 +110,9 @@ for _ in $(seq 1 10); do
   sleep 3
 done
 pkill -f 'TCP4-LISTEN:3000' 2>/dev/null || true
-nohup socat TCP4-LISTEN:3000,reuseaddr,fork "VSOCK-CONNECT:$CID:3000" >/tmp/fwd.log 2>&1 &
+# setsid + </dev/null fully detach these background helpers; otherwise they hold
+# this ssh session's channel open and setup hangs after "enclave serving".
+setsid socat TCP4-LISTEN:3000,reuseaddr,fork "VSOCK-CONNECT:$CID:3000" </dev/null >/tmp/fwd.log 2>&1 &
 # After secrets, the server mounts its tmpfs and comes up; poll until it serves.
 len=0
 for _ in $(seq 1 20); do
@@ -132,7 +134,8 @@ curl -sf --max-time 15 "$ENCLAVE_URL/get_attestation" >/dev/null || die "enclave
 
 log "registering the enclave (no Cap, permissionless)"
 out=$(bash "$HERE/register_enclave.sh" "$ENCLAVE_PKG" "$APP_PKG" "$CONFIG_ID" "$ENCLAVE_URL" "$MODULE" "$OTW")
-EOBJ=$(echo "$out" | awk '/ObjectID:/{id=$3} /::enclave::Enclave</{print id; exit}')
+# The created Enclave object's id, robust to sui's ID:/ObjectID: table variants.
+EOBJ=$(printf '%s\n' "$out" | grep -B3 "::enclave::Enclave<" | grep -oE "0x[0-9a-f]{64}" | head -1)
 [ -n "$EOBJ" ] || { echo "$out" | tail -20; die "no registered Enclave object found in the output"; }
 
 { printf 'INSTANCE_ID=%s\n' "$INSTANCE_ID"

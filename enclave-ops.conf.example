@@ -7,7 +7,7 @@
 # AWS launch parameters for the instance setup creates and teardown destroys.
 REGION=us-east-1
 AMI_ID=ami-085ad6ae776d8f09c     # a stock Amazon Linux 2023 AMI in this region
-INSTANCE_TYPE=m5.xlarge          # must support Nitro Enclaves
+INSTANCE_TYPE=m5.2xlarge         # Nitro-capable and big enough (32G) for a 12G enclave
 KEY_NAME=your-key                # an EC2 key pair name in this region
 SSH_KEY=$HOME/.ssh/your-key.pem  # the matching private key
 SSH_USER=ec2-user
@@ -23,10 +23,11 @@ NETWORK=testnet
 # the image from source instead of downloading it.
 RELEASE_TAG=testnet/v1
 
-# Enclave resources. MEMORY_MIB must clear the tmpfs cap in run.sh (6G) with
-# headroom; the allocator is set to this during provisioning.
+# Enclave resources. MEMORY_MIB must clear the 6G tmpfs cap in run.sh with real
+# headroom -- 8G stalls the mount and the server never starts; 12G works -- so the
+# instance needs >=32G RAM. The allocator is set to this during provisioning.
 CPU_COUNT=2
-MEMORY_MIB=8192
+MEMORY_MIB=12288
 
 # Local port the enclave HTTP is tunneled to on this machine.
 LOCAL_PORT=3000
