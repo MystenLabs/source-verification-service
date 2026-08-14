@@ -1,8 +1,8 @@
 # Testnet deployment
 
-The first end-to-end deployment, recorded so the objects can be found and the
-enclave image reproduced. Superseded values are replaced rather than appended;
-git history is the record of what came before.
+The testnet deployment, recorded so the objects can be found and the enclave image
+reproduced. Superseded values are replaced rather than appended; git history is the
+record of what came before.
 
 ## Packages
 
@@ -14,13 +14,9 @@ package's `Published.toml`, which is what the package system reads). What each i
   `version` / `upgradeCap`.
 - **`attestations`** — Mysten's `attestations` package, linked.
 
-`source_verification` keeps one lineage: it is *upgraded*, not republished, as the
-service evolves, so its original-id and its recorded attestations are stable. The
-type is identified by the original-id, so every attestation stays the same type
-across upgrades. This is viable because the changes so far have been
-upgrade-compatible — including *removing* an `entry` function (a testnet-only
-Display migration helper), which the Compatible policy allows for non-`public`
-functions.
+`source_verification` is published at its original-id (`originalId == latestId`);
+the `SourceVerification` type is identified by that id, so every attestation under
+it is the same type.
 
 ## Objects
 
@@ -38,13 +34,8 @@ independently forge an attestation; see [DESIGN.md](DESIGN.md#trust-roots).
 
 ## Enclave image
 
-```
-PCR0  92b237a89f9721d37f29d342a24683c04082a88edce9199ed30215cd7479c3035a03c541b18d89013e48c91326bcab01
-PCR1  92b237a89f9721d37f29d342a24683c04082a88edce9199ed30215cd7479c3035a03c541b18d89013e48c91326bcab01
-PCR2  21b9efbc184807662e966d34f390821309eeac6802309798826296bf3e8bec7c10edb30948c90ba67310f7b964fc500a
-```
-
-PCR0 and PCR1 are what bind the image.
+The PCRs are recorded in [`addresses.testnet.json`](addresses.testnet.json) under
+`pcrs` — PCR0 and PCR1 bind the image; PCR2 is constant across builds.
 
 The PCRs are **not** compiled into the contract — they are deployment data. After
 publishing, the `Cap` holder creates the shared `EnclaveConfig` with them:
@@ -52,7 +43,7 @@ publishing, the `Cap` holder creates the shared `EnclaveConfig` with them:
 ```shell
 sui client call --package "$ENCLAVE_PKG" --module enclave --function create_enclave_config \
     --type-args "$APP_PKG::source_verification::SourceVerifier" \
-    --args "$CAP" source-verification 0x4d4412ff…027e7a 0x4d4412ff…027e7a 0x21b9efbc…c500a
+    --args "$CAP" source-verification "$PCR0" "$PCR1" "$PCR2"   # from addresses.testnet.json `pcrs`
 ```
 
 and rolls out a new image later with `enclave::update_pcrs` on the same `Cap`, no
@@ -105,7 +96,7 @@ run rather than from those constants.
 ```shell
 make verifier SUI_SRC=/path/to/sui   # checks out VERIFIER_REV, asserts VERIFIER_SHA256
 make ENCLAVE_APP=source-verification
-cat out/nitro.pcrs                    # must match the PCRs above
+cat out/nitro.pcrs                    # must match the recorded PCRs
 
 # ...and to compare a built image against what is registered on-chain, read the
 # PCRs back off the EnclaveConfig (its id is `enclaveConfig` in addresses.testnet.json):

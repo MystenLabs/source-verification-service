@@ -4,16 +4,22 @@
   "packages": {
     "enclave": "0x8358708a5f14133d7ca5f1a6c1a48dcdca1ce81c83e448851aec5e6cf03d8def",
     "sourceVerification": {
-      "originalId": "0xcb8431eec58b1da968ec30841bb026b478fcee3d744e44647d355f70c4b12775",
-      "latestId": "0x270c883b752ff0bc10f81eb71b2bd69116d2e29a262408d0fcbb1947935894bb",
-      "version": 3,
-      "upgradeCap": "0x144cb5a9a01fb7de1bb528cb2c6742136cdf0c7fc0c519fcfdf947eee599efa0"
+      "originalId": "0x3a38d71666de1b83e4e3d3a7ad5c49cbb8b1aaab35da0d8c13e186753968b9d7",
+      "latestId": "0x3a38d71666de1b83e4e3d3a7ad5c49cbb8b1aaab35da0d8c13e186753968b9d7",
+      "version": 1,
+      "upgradeCap": "0xbb30b8e8a13c99fb8fbb246bfb8cad107975950a6ecb6b7cb924f11b39d53fda"
     },
     "attestations": "0x6e0e1141d77448253ab434b008a01259e81c5c31bd1cdac8922a5256da690c09"
   },
   "objects": {
-    "enclaveConfig": "0xe4da114a4a5e35751cc730dd48c1a0588b27ef3cd35e91ab37bd58d91125cb57",
-    "cap": "0x7985f057e3f6df05704cdbb2ec9d943d3965f650ba6912844d4975765e7d721b",
+    "enclaveConfig": "0xaf4552516fa35d9ccc25452e2a7273fc3d5c3fbcf5898b301bd2df3d64fafca1",
+    "cap": "0x3c92057ce10d22d5145273429d4462247a9ad939f128de9b6ecbac31a1b28d94",
+    "enclave": "0x802fadf36e10bffb3675c71768257c914cf997dad2e545d6bf94a9ffa51328bd",
     "attestationsRegistry": "0x5a8a789c0385d5e891519612a7d3d8ab36f1d9fc03d63cdabf1cefb3d848b568"
+  },
+  "pcrs": {
+    "pcr0": "92b237a89f9721d37f29d342a24683c04082a88edce9199ed30215cd7479c3035a03c541b18d89013e48c91326bcab01",
+    "pcr1": "92b237a89f9721d37f29d342a24683c04082a88edce9199ed30215cd7479c3035a03c541b18d89013e48c91326bcab01",
+    "pcr2": "21b9efbc184807662e966d34f390821309eeac6802309798826296bf3e8bec7c10edb30948c90ba67310f7b964fc500a"
   }
 }
