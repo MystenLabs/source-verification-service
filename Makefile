@@ -29,6 +29,10 @@ VERIFIER := verifier/sui
 VERIFIER_VERSION := testnet-v1.77.2
 VERIFIER_SHA256 := c902aa06bf0c1e157e9f86c65efec504cd0fbc5c74dd472e3fd6dcab86fe3fa3
 
+# The SHA-256 tool differs by host: sha256sum on the Linux enclave host, shasum
+# on macOS for local reproduction. Use whichever exists.
+SHA256 := $(shell command -v sha256sum >/dev/null 2>&1 && echo sha256sum || echo shasum -a 256)
+
 .DEFAULT_GOAL :=
 .PHONY: default
 default: out/nitro.eif
@@ -86,7 +90,7 @@ $(VERIFIER):
 	mkdir -p $(dir $(VERIFIER))
 	curl -fsSL "https://github.com/MystenLabs/sui/releases/download/$(VERIFIER_VERSION)/sui-$(VERIFIER_VERSION)-ubuntu-x86_64.tgz" \
 		| tar -xz -C $(dir $(VERIFIER)) ./sui
-	@actual=$$(shasum -a 256 $(VERIFIER) | cut -d" " -f1); \
+	@actual=$$($(SHA256) $(VERIFIER) | cut -d" " -f1); \
 	if [ "$$actual" != "$(VERIFIER_SHA256)" ]; then \
 		echo "verifier digest mismatch:"; \
 		echo "  expected $(VERIFIER_SHA256)"; \
