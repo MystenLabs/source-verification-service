@@ -9,8 +9,14 @@
 
 . "$(cd "$(dirname "$0")" && pwd)/ops-common.sh"
 
-require_sui_network
-BUILD=""; [ "${1:-}" = "--build" ] && BUILD=1
+BUILD=""; NO_REGISTER=""
+for a in "$@"; do case "$a" in
+  --build) BUILD=1 ;;
+  --no-register) NO_REGISTER=1 ;;
+  *) die "unknown option: $a (use --build and/or --no-register)" ;;
+esac; done
+# Registering needs sui; a verify-only bring-up (--no-register, for CI) does not.
+[ -n "$NO_REGISTER" ] || require_sui_network
 
 # Resolve the EIF source before touching AWS, so a bad RELEASE_TAG fails fast.
 if [ -n "$BUILD" ]; then
@@ -132,14 +138,20 @@ sleep 2
 ENCLAVE_URL="http://localhost:$LOCAL_PORT"
 curl -sf --max-time 15 "$ENCLAVE_URL/get_attestation" >/dev/null || die "enclave not reachable through the tunnel"
 
-log "registering the enclave (no Cap, permissionless)"
-out=$(bash "$HERE/register_enclave.sh" "$ENCLAVE_PKG" "$APP_PKG" "$CONFIG_ID" "$ENCLAVE_URL" "$MODULE" "$OTW")
-# The created Enclave object's id, robust to sui's ID:/ObjectID: table variants.
-EOBJ=$(printf '%s\n' "$out" | grep -B3 "::enclave::Enclave<" | grep -oE "0x[0-9a-f]{64}" | head -1)
-[ -n "$EOBJ" ] || { echo "$out" | tail -20; die "no registered Enclave object found in the output"; }
-
-{ printf 'INSTANCE_ID=%s\n' "$INSTANCE_ID"
-  printf 'ENCLAVE_URL=%s\n' "$ENCLAVE_URL"
-  printf 'ENCLAVE_OBJECT_ID=%s\n' "$EOBJ"; } >"$SESSION"
-log "registered Enclave $EOBJ"
-log "session -> $SESSION.  Next: ./attest.sh <package-dir>"
+if [ -n "$NO_REGISTER" ]; then
+  { printf 'INSTANCE_ID=%s\n' "$INSTANCE_ID"
+    printf 'ENCLAVE_URL=%s\n' "$ENCLAVE_URL"; } >"$SESSION"
+  log "enclave serving at $ENCLAVE_URL (not registered)"
+  log "session -> $SESSION.  Next: ./attest.sh <package-dir> --no-attest"
+else
+  log "registering the enclave (no Cap, permissionless)"
+  out=$(bash "$HERE/register_enclave.sh" "$ENCLAVE_PKG" "$APP_PKG" "$CONFIG_ID" "$ENCLAVE_URL" "$MODULE" "$OTW")
+  # The created Enclave object's id, robust to sui's ID:/ObjectID: table variants.
+  EOBJ=$(printf '%s\n' "$out" | grep -B3 "::enclave::Enclave<" | grep -oE "0x[0-9a-f]{64}" | head -1)
+  [ -n "$EOBJ" ] || { echo "$out" | tail -20; die "no registered Enclave object found in the output"; }
+  { printf 'INSTANCE_ID=%s\n' "$INSTANCE_ID"
+    printf 'ENCLAVE_URL=%s\n' "$ENCLAVE_URL"
+    printf 'ENCLAVE_OBJECT_ID=%s\n' "$EOBJ"; } >"$SESSION"
+  log "registered Enclave $EOBJ"
+  log "session -> $SESSION.  Next: ./attest.sh <package-dir>"
+fi

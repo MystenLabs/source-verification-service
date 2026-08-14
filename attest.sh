@@ -14,7 +14,8 @@ NO_ATTEST="${2:-}"
 [ -f "$SESSION" ] || die "no enclave session; run ./setup.sh first"
 # shellcheck source=/dev/null
 . "$SESSION"   # INSTANCE_ID, ENCLAVE_URL, ENCLAVE_OBJECT_ID
-require_sui_network
+# Recording the attestation needs sui; --no-attest (verify only) does not.
+[ "$NO_ATTEST" = "--no-attest" ] || require_sui_network
 
 # Reopen the tunnel if setup's dropped (e.g. the laptop slept).
 if ! curl -sf --max-time 10 "$ENCLAVE_URL/get_attestation" >/dev/null 2>&1; then
